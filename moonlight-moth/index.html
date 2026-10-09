@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#090e20" />
+  <title>Moonlight Moth</title>
+  <style>
+    :root {
+      --ink: #f7f3e8;
+      --soft: rgba(247, 243, 232, .72);
+      --line: rgba(245, 240, 223, .16);
+      --panel: rgba(12, 17, 34, .78);
+      --gold: #f5d77b;
+      --mint: #a4ead0;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: #090e20; color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    .hud { position: fixed; z-index: 2; top: 18px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
+    .brand { pointer-events: auto; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: .9; letter-spacing: -.055em; text-transform: uppercase; }
+    h1 span { color: var(--gold); }
+    .subtitle { margin: 8px 0 0; color: var(--soft); font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; }
+    .stats { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; pointer-events: auto; }
+    .chip { min-width: 76px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 13px; background: rgba(12,17,34,.6); backdrop-filter: blur(10px); color: var(--ink); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; text-align: center; white-space: nowrap; }
+    .chip b { color: var(--gold); }
+    .meter { width: 130px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(12,17,34,.6); backdrop-filter: blur(10px); }
+    .meter-label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; color: var(--soft); font-size: .57rem; letter-spacing: .1em; text-transform: uppercase; }
+    .bar { height: 5px; overflow: hidden; border-radius: 8px; background: rgba(255,255,255,.12); }
+    .bar i { display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a4ead0, #f5d77b); transition: width .12s linear; }
+    .footer { position: fixed; z-index: 2; left: 20px; right: 20px; bottom: 18px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; pointer-events: none; }
+    .hint { max-width: 58ch; padding: 10px 13px; border: 1px solid var(--line); border-radius: 14px; background: rgba(12,17,34,.62); backdrop-filter: blur(10px); color: var(--soft); font-size: .68rem; line-height: 1.55; letter-spacing: .08em; text-transform: uppercase; }
+    .hint b { color: var(--ink); }
+    .overlay { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px; background: rgba(5, 8, 19, .34); }
+    .panel { width: min(440px, 100%); padding: 26px; border: 1px solid var(--line); border-radius: 24px; background: rgba(12,17,34,.9); box-shadow: 0 25px 90px rgba(0,0,0,.45); backdrop-filter: blur(16px); }
+    .panel h2 { margin: 0 0 12px; font-size: clamp(2.2rem, 8vw, 3.5rem); line-height: .88; letter-spacing: -.06em; text-transform: uppercase; }
+    .panel h2 span { color: var(--gold); }
+    .panel p, .panel ul { color: var(--soft); line-height: 1.7; }
+    .panel ul { padding-left: 20px; }
+    .panel b { color: var(--ink); }
+    .go { border: 0; border-radius: 14px; padding: 14px 18px; background: var(--gold); color: #28200d; cursor: pointer; font: inherit; font-size: .76rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .go:hover { filter: brightness(1.08); }
+    .go:focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 700px) {
+      .hud { top: 12px; left: 12px; right: 12px; }
+      .subtitle, .hint { display: none; }
+      .stats { max-width: 52%; gap: 6px; }
+      .chip { min-width: 0; padding: 7px 9px; font-size: .58rem; }
+      .meter { width: 112px; padding: 7px 9px; }
+      .footer { left: 12px; right: 12px; bottom: 12px; }
+      .panel { padding: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" aria-label="Moonlight Moth game. Guide the moth to collect moon seeds and avoid shadows."></canvas>
+  <header class="hud">
+    <div class="brand">
+      <h1>Moonlight <span>Moth</span></h1>
+      <p class="subtitle">Keep the little light alive</p>
+    </div>
+    <div class="stats" aria-live="polite">
+      <span class="chip">glow <b id="score">0</b></span>
+      <span class="chip">best <b id="best">0</b></span>
+      <span class="chip">time <b id="time">60</b>s</span>
+      <span class="chip">wings <b id="lives">3</b></span>
+      <div class="meter" aria-label="Moth glow">
+        <div class="meter-label"><span>moonlight</span><span id="glowText">100%</span></div>
+        <div class="bar"><i id="glowBar"></i></div>
+      </div>
+    </div>
+  </header>
+  <footer class="footer">
+    <div class="hint"><b>Guide</b> the moth with pointer / touch or arrow keys · <b>Collect</b> moon-seeds · Avoid the shadows</div>
+  </footer>
+  <div class="overlay" id="overlay">
+    <section class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+      <h2 id="panelTitle">Moonlight <span>Moth</span></h2>
+      <p>Night is wide and the meadow is quiet. Help one small moth gather enough moon-seeds to keep its glow.</p>
+      <ul>
+        <li><b>Collect</b> floating moon-seeds to restore your light and earn points.</li>
+        <li><b>Keep moving</b> — your glow gently fades as the night goes on.</li>
+        <li><b>Avoid</b> the deep shadows drifting through the meadow.</li>
+      </ul>
+      <button class="go" id="start" type="button">Enter the night</button>
+    </section>
+  </div>
+  <script>
+    (() => {
+      const canvas = document.getElementById('game');
+      const ctx = canvas.getContext('2d');
+      const overlay = document.getElementById('overlay');
+      const startBtn = document.getElementById('start');
+      const keys = { left: false, right: false, up: false, down: false };
+      const bestKey = 'moonlight-moth-best';
+      let W = 0, H = 0, dpr = 1, state = 'intro', last = 0, elapsed = 0;
+      let score = 0, best = Number(localStorage.getItem(bestKey) || 0), lives = 3, timeLeft = 60, glow = 100;
+      let moth, seeds = [], shadows = [], particles = [], flowers = [], stars = [];
+      let seedClock = 0, shadowClock = 2, pointer = null, wingBeat = 0, hitFlash = 0;
+
+      document.getElementById('best').textContent = String(best);
+      const rand = (a, b) => a + Math.random() * (b - a);
+      const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+      function resize() {
+        dpr = Math.min(2, window.devicePixelRatio || 1);
+        W = window.innerWidth; H = window.innerHeight;
+        canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (!moth) moth = { x: W * .5, y: H * .55, vx: 0, vy: 0 };
+        moth.x = clamp(moth.x, 25, W - 25); moth.y = clamp(moth.y, 50, H - 40);
+        stars = Array.from({ length: Math.max(45, Math.round(W / 15)) }, () => ({ x: Math.random() * W, y: Math.random() * H * .72, r: rand(.5, 1.8), phase: rand(0, Math.PI * 2), speed: rand(.5, 1.8) }));
+        flowers = Array.from({ length: Math.max(12, Math.round(W / 70)) }, (_, i) => ({ x: i * W / Math.max(12, Math.round(W / 70)) + rand(-12, 12), h: rand(16, 55), sway: rand(0, Math.PI * 2), color: ['#91b88d', '#b5a1cc', '#d7b96a'][i % 3] }));
+      }
+
+      function reset() {
+        score = 0; lives = 3; timeLeft = 60; glow = 100; elapsed = 0; seedClock = .3; shadowClock = 2; hitFlash = 0;
+        seeds = []; shadows = []; particles = []; pointer = null;
+        moth = { x: W * .5, y: H * .55, vx: 0, vy: 0 };
+        updateHud();
+      }
+
+      function updateHud() {
+        document.getElementById('score').textContent = String(score);
+        document.getElementById('lives').textContent = String(lives);
+        document.getElementById('time').textContent = String(Math.ceil(timeLeft));
+        document.getElementById('glowText').textContent = `${Math.ceil(glow)}%`;
+        document.getElementById('glowBar').style.width = `${glow}%`;
+      }
+
+      function finish(message) {
+        if (state !== 'playing') return;
+        state = 'over';
+        if (score > best) {
+          best = score;
+          localStorage.setItem(bestKey, String(best));
+          document.getElementById('best').textContent = String(best);
+        }
+        document.getElementById('panelTitle').innerHTML = `${message} <span>Moth</span>`;
+        overlay.querySelector('p').textContent = `You gathered ${score} ${score === 1 ? 'moon-seed' : 'moon-seeds'} tonight. The meadow will remember your little light.`;
+        overlay.querySelector('ul').innerHTML = '<li>Rest your wings, then see how much further your glow can travel.</li>';
+        startBtn.textContent = 'Fly again';
+        overlay.hidden = false;
+      }
+
+      function addSeed() {
+        seeds.push({ x: rand(28, W - 28), y: rand(H * .2, H * .82), r: rand(6, 9), phase: rand(0, Math.PI * 2), drift: rand(9, 22), twinkle: rand(0, 4) });
+      }
+
+      function addShadow() {
+        const r = rand(25, 43);
+        shadows.push({ x: Math.random() < .5 ? -r : W + r, y: rand(H * .23, H * .86), r, vx: Math.random() < .5 ? rand(20, 46) : -rand(20, 46), phase: rand(0, Math.PI * 2), vy: rand(-10, 10) });
+      }
+
+      function burst(x, y, color, n = 16) {
+        for (let i = 0; i < n; i++) particles.push({ x, y, vx: rand(-95, 95), vy: rand(-95, 95), life: rand(.35, .9), color, r: rand(1, 4) });
+      }
+
+      function update(dt) {
+        if (state !== 'playing') return;
+        elapsed += dt; timeLeft -= dt; glow = Math.max(0, glow - dt * 2.35);
+        if (timeLeft <= 0) { timeLeft = 0; updateHud(); finish('Dreaming'); return; }
+        if (glow <= 0) { updateHud(); finish('Darkness'); return; }
+        const dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+        const dy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
+        if (pointer) {
+          moth.vx += (pointer.x - moth.x) * 5.5 * dt;
+          moth.vy += (pointer.y - moth.y) * 5.5 * dt;
+        } else {
+          moth.vx += dx * 440 * dt;
+          moth.vy += dy * 440 * dt;
+        }
+        moth.vx *= Math.pow(.09, dt); moth.vy *= Math.pow(.09, dt);
+        moth.x = clamp(moth.x + moth.vx * dt, 20, W - 20);
+        moth.y = clamp(moth.y + moth.vy * dt, 48, H - 35);
+        wingBeat += dt * 18;
+        seedClock -= dt; shadowClock -= dt; hitFlash = Math.max(0, hitFlash - dt);
+        if (seedClock <= 0) { addSeed(); seedClock = rand(.65, 1.05); }
+        if (shadowClock <= 0) { addShadow(); shadowClock = rand(2.2, 3.5); }
+
+        for (let i = seeds.length - 1; i >= 0; i--) {
+          const seed = seeds[i]; seed.y += Math.sin(elapsed * 1.5 + seed.phase) * seed.drift * dt;
+          if (Math.hypot(seed.x - moth.x, seed.y - moth.y) < seed.r + 16) {
+            score++; glow = Math.min(100, glow + 24); burst(seed.x, seed.y, '#f5d77b'); seeds.splice(i, 1);
+          }
+        }
+        for (let i = shadows.length - 1; i >= 0; i--) {
+          const shadow = shadows[i]; shadow.x += shadow.vx * dt; shadow.y += Math.sin(elapsed * 1.2 + shadow.phase) * shadow.vy * dt;
+          if (Math.hypot(shadow.x - moth.x, shadow.y - moth.y) < shadow.r + 13) {
+            lives--; glow = Math.max(0, glow - 18); hitFlash = .35; burst(moth.x, moth.y, '#a8a3d8', 11); shadows.splice(i, 1);
+            if (lives <= 0) { updateHud(); finish('Lost in the'); return; }
+          } else if (shadow.x < -100 || shadow.x > W + 100) shadows.splice(i, 1);
+        }
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i]; p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .98; p.vy *= .98;
+          if (p.life <= 0) particles.splice(i, 1);
+        }
+        updateHud();
+      }
+
+      function drawBackground() {
+        const sky = ctx.createLinearGradient(0, 0, 0, H);
+        sky.addColorStop(0, '#111a38'); sky.addColorStop(.48, '#202b46'); sky.addColorStop(1, '#172335');
+        ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+        const moon = ctx.createRadialGradient(W * .77, H * .2, 3, W * .77, H * .2, Math.min(W, H) * .36);
+        moon.addColorStop(0, 'rgba(235,222,176,.38)'); moon.addColorStop(1, 'rgba(211,204,167,0)');
+        ctx.fillStyle = moon; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#f3e8c8'; ctx.beginPath(); ctx.arc(W * .77, H * .2, Math.min(34, H * .055), 0, Math.PI * 2); ctx.fill();
+        for (const star of stars) {
+          ctx.globalAlpha = .3 + (Math.sin(elapsed * star.speed + star.phase) + 1) * .28;
+          ctx.fillStyle = '#fff5d5'; ctx.beginPath(); ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        for (let layer = 0; layer < 3; layer++) {
+          const base = H * (.78 + layer * .08);
+          ctx.beginPath(); ctx.moveTo(0, H);
+          for (let x = 0; x <= W + 30; x += 24) ctx.lineTo(x, base + Math.sin(x * .009 + elapsed * (.2 + layer * .08) + layer) * (13 + layer * 8));
+          ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = ['#28394a', '#1d3040', '#142738'][layer]; ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(158,188,133,.44)'; ctx.lineWidth = 2;
+        for (const flower of flowers) {
+          const sway = Math.sin(elapsed * 1.2 + flower.sway) * 5;
+          ctx.beginPath(); ctx.moveTo(flower.x, H * .95); ctx.quadraticCurveTo(flower.x + sway, H * .9, flower.x + sway, H * .95 - flower.h); ctx.stroke();
+          ctx.fillStyle = flower.color; ctx.beginPath(); ctx.arc(flower.x + sway, H * .95 - flower.h, 3.5, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      function drawSeed(seed) {
+        const pulse = 1 + Math.sin(elapsed * 4 + seed.phase) * .13;
+        ctx.save(); ctx.translate(seed.x, seed.y); ctx.scale(pulse, pulse);
+        ctx.shadowColor = '#ffe59a'; ctx.shadowBlur = 18;
+        ctx.fillStyle = '#ffe8a5'; ctx.beginPath(); ctx.moveTo(0, -seed.r); ctx.quadraticCurveTo(seed.r * 1.25, 0, 0, seed.r); ctx.quadraticCurveTo(-seed.r * 1.25, 0, 0, -seed.r); ctx.fill();
+        ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.arc(-2, -2, 1.6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+
+      function drawMoth() {
+        ctx.save(); ctx.translate(moth.x, moth.y);
+        ctx.rotate(clamp(moth.vx / 600, -.4, .4));
+        const flutter = Math.sin(wingBeat) * .36;
+        const aura = 21 + glow * .38;
+        const glowFill = ctx.createRadialGradient(0, 0, 2, 0, 0, aura);
+        glowFill.addColorStop(0, 'rgba(255,234,169,.28)'); glowFill.addColorStop(1, 'rgba(255,224,140,0)');
+        ctx.fillStyle = glowFill; ctx.beginPath(); ctx.arc(0, 0, aura, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = '#ffe5a0'; ctx.shadowBlur = 16;
+        ctx.fillStyle = '#f6e5bb';
+        ctx.save(); ctx.rotate(-.52 - flutter); ctx.beginPath(); ctx.ellipse(-7, -8, 7, 12, -.35, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.rotate(.52 + flutter); ctx.beginPath(); ctx.ellipse(-7, 8, 7, 12, .35, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        ctx.shadowBlur = 0; ctx.fillStyle = '#71634d'; ctx.beginPath(); ctx.ellipse(1, 0, 3.5, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#e9d9b7'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(2, -6); ctx.quadraticCurveTo(6, -11, 7, -13); ctx.moveTo(2, 6); ctx.quadraticCurveTo(6, 11, 7, 13); ctx.stroke();
+        ctx.restore();
+      }
+
+      function draw() {
+        drawBackground();
+        for (const shadow of shadows) {
+          const shade = ctx.createRadialGradient(shadow.x, shadow.y, 4, shadow.x, shadow.y, shadow.r * 1.7);
+          shade.addColorStop(0, 'rgba(4,7,19,.92)'); shade.addColorStop(.68, 'rgba(7,10,25,.76)'); shade.addColorStop(1, 'rgba(9,12,28,0)');
+          ctx.fillStyle = shade; ctx.beginPath(); ctx.arc(shadow.x, shadow.y, shadow.r * 1.7, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(156,151,192,.22)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(shadow.x, shadow.y, shadow.r, 0, Math.PI * 2); ctx.stroke();
+        }
+        for (const seed of seeds) drawSeed(seed);
+        for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+
+        ctx.save();
+        const radius = 100 + glow * 2.15;
+        const darkness = ctx.createRadialGradient(moth.x, moth.y, radius * .12, moth.x, moth.y, radius);
+        darkness.addColorStop(0, 'rgba(3,5,14,0)'); darkness.addColorStop(.48, 'rgba(3,5,14,.1)'); darkness.addColorStop(1, `rgba(3,5,14,${.52 + (100 - glow) * .003})`);
+        ctx.fillStyle = darkness; ctx.fillRect(0, 0, W, H);
+        drawMoth(); ctx.restore();
+        if (hitFlash > 0) { ctx.fillStyle = `rgba(143,119,196,${hitFlash * .22})`; ctx.fillRect(0, 0, W, H); }
+      }
+
+      function frame(now) {
+        const dt = Math.min(.033, (now - last) / 1000 || .016); last = now;
+        update(dt); draw(); requestAnimationFrame(frame);
+      }
+
+      canvas.addEventListener('pointerdown', event => {
+        pointer = { x: event.clientX, y: event.clientY };
+        canvas.setPointerCapture(event.pointerId);
+      });
+      canvas.addEventListener('pointermove', event => {
+        if (event.pointerType === 'mouse' || event.buttons) pointer = { x: event.clientX, y: event.clientY };
+      });
+      canvas.addEventListener('pointerup', () => { pointer = null; });
+      window.addEventListener('keydown', event => {
+        const key = event.key.toLowerCase();
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault();
+        if (key === 'arrowup' || key === 'w') keys.up = true;
+        if (key === 'arrowdown' || key === 's') keys.down = true;
+        if (key === 'arrowleft' || key === 'a') keys.left = true;
+        if (key === 'arrowright' || key === 'd') keys.right = true;
+        if (key === ' ' && state !== 'playing') startBtn.click();
+      });
+      window.addEventListener('keyup', event => {
+        const key = event.key.toLowerCase();
+        if (key === 'arrowup' || key === 'w') keys.up = false;
+        if (key === 'arrowdown' || key === 's') keys.down = false;
+        if (key === 'arrowleft' || key === 'a') keys.left = false;
+        if (key === 'arrowright' || key === 'd') keys.right = false;
+      });
+      window.addEventListener('blur', () => { for (const key in keys) keys[key] = false; pointer = null; });
+      window.addEventListener('resize', resize);
+      startBtn.addEventListener('click', () => {
+        reset(); state = 'playing'; overlay.hidden = true;
+        document.getElementById('panelTitle').innerHTML = 'Moonlight <span>Moth</span>';
+      });
+      resize(); requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
