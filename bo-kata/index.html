@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Bo Kata</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Noto+Nastaliq+Urdu:wght@700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one full-screen dusk sky (canvas) over Lahore rooftops; text sits lightly on top like a festival poster. Single committed dusk look. */
+:root{
+  --sky-top:#2b1d3f; --sky-mid:#9c3f4a; --sky-low:#f2a65a; --roof:#1a1220;
+  --ink:#fff3e4; --ink-soft:rgba(255,243,228,.72); --line:rgba(255,243,228,.22);
+  --manjha:#ff4d7d; --gold:#ffd166;
+  --f-display:'Rozha One',Georgia,serif;
+  --f-urdu:'Noto Nastaliq Urdu','Jameel Noori Nastaleeq',serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--roof);color:var(--ink);font-family:var(--f-mono);font-size:13px}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.hud{position:fixed;left:0;right:0;pointer-events:none;padding-inline:20px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.top{top:calc(16px + env(safe-area-inset-top,0px))}
+.bottom{bottom:calc(14px + env(safe-area-inset-bottom,0px));align-items:flex-end}
+.hud > *{pointer-events:auto}
+.title{max-width:520px;min-width:0}
+.title h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,7vw,72px);line-height:.9;margin:0;letter-spacing:.005em;text-shadow:0 2px 18px rgba(43,29,63,.45)}
+.title h1 span{color:var(--gold)}
+.title p{margin:10px 0 0;color:var(--ink-soft);line-height:1.6;max-width:44ch;text-wrap:pretty}
+.stats{display:flex;flex-direction:column;align-items:flex-end;gap:8px;text-align:right}
+.row{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip{border:1px solid var(--line);border-radius:999px;padding:5px 11px;background:rgba(26,18,32,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip b{color:var(--gold);font-weight:600}
+button.chip{font:inherit;color:inherit;cursor:pointer}
+button.chip:hover{border-color:var(--gold)}
+button.chip:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.hints{color:var(--ink-soft);font-size:12px;line-height:1.7;max-width:60ch}
+.hints b{color:var(--ink);font-weight:500}
+.urdu{font-family:var(--f-urdu);font-size:15px;color:var(--ink-soft)}
+@media (max-width:640px){
+  .title p{display:none}
+  .stats{align-items:flex-start;text-align:left}
+  .row{justify-content:flex-start}
+  .hints{font-size:11px}
+}
+</style>
+
+<canvas id="c" aria-label="Kite fighting game: drag to fly your kite, cross another kite's string and move fast to cut it"></canvas>
+
+<div class="hud top">
+  <div class="title">
+    <h1>Bo Kata<span>!</span></h1>
+    <p>Basant over Lahore. Cross your dor with another patang and keep it moving. The dor that saws faster cuts the other one.</p>
+  </div>
+  <div class="stats">
+    <div class="row"><span class="chip">kaati <b id="sCut">0</b></span><span class="chip">katwayi <b id="sLost">0</b></span></div>
+    <div class="row"><span class="chip" id="sWind">hawa →</span><button class="chip" id="soundBtn" type="button" aria-pressed="false">sound: off</button></div>
+  </div>
+</div>
+
+<div class="hud bottom">
+  <div class="hints"><b>drag</b> anywhere to fly your patang · <b>cross</b> another dor to start a pench · keep <b>moving</b> to saw · arrow keys work too</div>
+  <div class="urdu" lang="ur">بو کاٹا</div>
+</div>
+
+<script>
+(() => {
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let W = 0, H = 0, DPR = 1, roofY = 0;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ---------------- World ---------------- */
+const PALETTES = [
+  ['#ff4d7d', '#ffd166'], ['#3ec1d3', '#f6f7d7'], ['#7b2ff7', '#ff9f1c'],
+  ['#06d6a0', '#ef476f'], ['#ffbe0b', '#3a86ff'], ['#e63946', '#f1faee'], ['#8ac926', '#1982c4'],
+];
+const roofs = [];         // skyline blocks
+const decor = [];         // tiny far-away kites
+let wind = 0, windT = 0;
+let cutCount = 0, lostCount = 0;
+let shouts = [], sparks = [], debris = [];
+let player = null, ais = [], fallers = [], aiId = 0;
+const pointer = { x: 0, y: 0, down: false, active: false };
+const keys = {};
+
+function buildSkyline(){
+  roofs.length = 0;
+  let x = -20;
+  while (x < W + 20){
+    const w = rnd(60, 140), h = rnd(H * 0.08, H * 0.2);
+    roofs.push({ x, w, h, tank: Math.random() < 0.45, rail: Math.random() < 0.5, win: Math.random() });
+    x += w + rnd(-6, 10);
+  }
+  // one dome and minaret far left for a Lahore silhouette
+  roofs.push({ x: W * 0.06, w: 70, h: H * 0.26, dome: true });
+  roofY = H - H * 0.12;
+}
+
+function anchorFor(side){
+  if (side === 'you') return { x: W * 0.5, y: roofY - 4 };
+  const left = side === 'left';
+  return { x: left ? rnd(W * 0.05, W * 0.2) : rnd(W * 0.8, W * 0.95), y: roofY - rnd(10, 40) };
+}
+
+/* ---------------- Rope (verlet) ---------------- */
+const SEG = 26;
+function makeRope(a, b){
+  const pts = [];
+  for (let i = 0; i <= SEG; i++){
+    const t = i / SEG, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+    pts.push({ x, y, px: x, py: y });
+  }
+  return pts;
+}
+function stepRope(pts, dt, segLen, pinA, pinB, sag){
+  const g = sag * dt * dt, wx = wind * 0.35 * dt * dt;
+  for (let i = 0; i < pts.length; i++){
+    const p = pts[i];
+    if ((i === 0 && pinA) || (i === pts.length - 1 && pinB)) continue;
+    const vx = (p.x - p.px) * 0.985, vy = (p.y - p.py) * 0.985;
+    p.px = p.x; p.py = p.y;
+    p.x += vx + wx; p.y += vy + g;
+  }
+  for (let k = 0; k < 10; k++){
+    if (pinA){ pts[0].x = pinA.x; pts[0].y = pinA.y; }
+    if (pinB){ const l = pts[pts.length - 1]; l.x = pinB.x; l.y = pinB.y; }
+    for (let i = 0; i < pts.length - 1; i++){
+      const a = pts[i], b = pts[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1e-4;
+      const diff = (d - segLen) / d * 0.5;
+      const aPinned = (i === 0 && pinA), bPinned = (i + 1 === pts.length - 1 && pinB);
+      if (aPinned && !bPinned){ b.x -= dx * diff * 2; b.y -= dy * diff * 2; }
+      else if (bPinned && !aPinned){ a.x += dx * diff * 2; a.y += dy * diff * 2; }
+      else if (!aPinned && !bPinned){ a.x += dx * diff; a.y += dy * diff; b.x -= dx * diff; b.y -= dy * diff; }
+    }
+  }
+}
+
+/* ---------------- Kites ---------------- */
+function makeKite(owner, side){
+  const anchor = anchorFor(side);
+  const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+  const start = { x: anchor.x + rnd(-40, 40), y: anchor.y - 60 };
+  return {
+    owner, side, anchor, pal, x: start.x, y: start.y, vx: 0, vy: -120, ang: 0, size: owner === 'you' ? 30 : 26,
+    rope: makeRope(anchor, start), cut: false, gone: false, speed: 0, t: 0,
+    tx: start.x, ty: H * 0.35, brain: 'wander', brainT: rnd(1, 2), aggro: rnd(0.55, 1.05), meter: 0, crossing: null,
+    id: ++aiId, dor: owner === 'you' ? '#ff4d7d' : '#f3e9dc',
+  };
+}
+function spawnPlayer(){ player = makeKite('you', 'you'); player.tx = W * 0.5; player.ty = H * 0.38; }
+function spawnAI(){
+  const used = ais.map(a => a.side);
+  const side = used.includes('left') ? 'right' : used.includes('right') ? 'left' : (Math.random() < .5 ? 'left' : 'right');
+  const k = makeKite('ai', side); k.brainT = rnd(2.5, 5); ais.push(k);
+}
+
+function steer(k, dt, stiff, damp){
+  const ax = (k.tx - k.x) * stiff - k.vx * damp + wind * 0.6;
+  const ay = (k.ty - k.y) * stiff - k.vy * damp - 8;      // a little lift
+  k.vx += ax * dt; k.vy += ay * dt;
+  const sp = Math.hypot(k.vx, k.vy), max = 900;
+  if (sp > max){ k.vx *= max / sp; k.vy *= max / sp; }
+  k.x += k.vx * dt; k.y += k.vy * dt;
+  k.y = Math.min(k.y, roofY - 50); k.x = clamp(k.x, 14, W - 14);
+  k.speed = Math.hypot(k.vx, k.vy);
+  k.ang += ((clamp(k.vx / 500, -0.7, 0.7) + Math.sin(k.t * 3.1) * 0.06) - k.ang) * Math.min(1, dt * 6);
+}
+
+function ropeLen(k){ return Math.max(60, Math.hypot(k.x - k.anchor.x, k.y - k.anchor.y) * 1.07) / SEG; }
+
+/* AI: wander, then go after the player's dor and saw back and forth once crossed. */
+function think(k, dt){
+  k.brainT -= dt;
+  if (k.crossing){
+    const s = Math.sin(k.t * (7 + k.aggro * 6)) * (70 + k.aggro * 90);
+    k.tx = k.crossing.x + s; k.ty = k.crossing.y - 40 + Math.cos(k.t * 5) * 30;
+    return;
+  }
+  if (k.brainT <= 0){
+    if (k.brain === 'wander' && player && Math.random() < 0.65){ k.brain = 'hunt'; k.brainT = rnd(4, 7); }
+    else { k.brain = 'wander'; k.brainT = rnd(2, 4); k.tx = rnd(W * 0.12, W * 0.88); k.ty = rnd(H * 0.12, H * 0.5); }
+  }
+  if (k.brain === 'hunt' && player){
+    const p = player.rope[Math.floor(SEG * 0.55)];
+    const flip = Math.sin(k.t * 1.3) > 0 ? 1 : -1;
+    k.tx = p.x + flip * 120; k.ty = p.y - 70;
+  }
+}
+
+/* ---------------- Pench (string crossing) ---------------- */
+function segHit(a, b, c, d){
+  const r1x = b.x - a.x, r1y = b.y - a.y, r2x = d.x - c.x, r2y = d.y - c.y;
+  const den = r1x * r2y - r1y * r2x; if (Math.abs(den) < 1e-6) return null;
+  const t = ((c.x - a.x) * r2y - (c.y - a.y) * r2x) / den, u = ((c.x - a.x) * r1y - (c.y - a.y) * r1x) / den;
+  return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ? { x: a.x + r1x * t, y: a.y + r1y * t } : null;
+}
+function findCross(r1, r2){
+  for (let i = 3; i < r1.length - 1; i++)       // ignore the part near the roof
+    for (let j = 3; j < r2.length - 1; j++){
+      const h = segHit(r1[i], r1[i + 1], r2[j], r2[j + 1]);
+      if (h) return { x: h.x, y: h.y, i, j };
+    }
+  return null;
+}
+
+function cutKite(k, at, segIndex){
+  k.cut = true; k.cutT = 0; k.meter = 0; k.crossing = null;
+  const tail = k.rope.slice(segIndex + 1);           // piece still tied to the kite
+  const limp = k.rope.slice(0, segIndex + 1);         // piece left hanging from the roof
+  k.rope = tail; k.vy = -40; k.vx = wind * 0.8;
+  debris.push({ pts: limp, anchor: k.anchor, life: 4, color: k.dor });
+  const mine = k.owner === 'ai';
+  fallers.push(k);
+  if (mine) ais = ais.filter(a => a !== k); else player = null;
+  shouts.push({ x: at.x, y: at.y, t: 0, text: mine ? 'Bo Kata!' : 'Kat gayi!', mine });
+  for (let i = 0; i < (reduceMotion ? 6 : 26); i++) sparks.push({ x: at.x, y: at.y, vx: rnd(-160, 160), vy: rnd(-180, 60), life: rnd(.4, .9) });
+  if (mine){ cutCount++; setTimeout(spawnAI, rnd(1800, 3200)); } else { lostCount++; setTimeout(spawnPlayer, 1600); }
+  document.getElementById('sCut').textContent = cutCount;
+  document.getElementById('sLost').textContent = lostCount;
+  sound.cut(mine);
+}
+
+/* ---------------- Sound (Web Audio, starts on first toggle) ---------------- */
+const sound = (() => {
+  let ac = null, on = false, noiseGain = null;
+  function init(){
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = 3;
+    noiseGain = ac.createGain(); noiseGain.gain.value = 0;
+    src.connect(bp).connect(noiseGain).connect(ac.destination); src.start();
+  }
+  return {
+    toggle(){ if (!ac) init(); on = !on; if (ac.state === 'suspended') ac.resume(); if (!on) noiseGain.gain.value = 0; return on; },
+    rub(level){ if (on && noiseGain) noiseGain.gain.setTargetAtTime(level * 0.18, ac.currentTime, 0.05); },
+    cut(win){
+      if (!on || !ac) return;
+      const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(win ? 520 : 300, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.45);
+      g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.55);
+      if (win){ // little rooftop cheer: two quick rising notes
+        [660, 880].forEach((f, i) => { const o2 = ac.createOscillator(), g2 = ac.createGain(); o2.type = 'square';
+          o2.frequency.value = f; g2.gain.setValueAtTime(0.0001, t + .15 + i * .12); g2.gain.exponentialRampToValueAtTime(0.08, t + .17 + i * .12);
+          g2.gain.exponentialRampToValueAtTime(0.0001, t + .3 + i * .12); o2.connect(g2).connect(ac.destination); o2.start(t + .15 + i * .12); o2.stop(t + .35 + i * .12); });
+      }
+    },
+  };
+})();
+document.getElementById('soundBtn').addEventListener('click', e => {
+  const on = sound.toggle(); e.currentTarget.textContent = 'sound: ' + (on ? 'on' : 'off'); e.currentTarget.setAttribute('aria-pressed', on);
+});
+
+/* ---------------- Input ---------------- */
+function setPointer(e){ const r = cv.getBoundingClientRect(); pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top; }
+cv.addEventListener('pointerdown', e => { setPointer(e); pointer.down = true; pointer.active = true; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e => { setPointer(e); if (e.pointerType === 'mouse') pointer.active = true; });
+cv.addEventListener('pointerup', () => { pointer.down = false; });
+cv.addEventListener('pointercancel', () => { pointer.down = false; });
+addEventListener('keydown', e => { if (e.key.startsWith('Arrow')){ keys[e.key] = true; e.preventDefault(); } });
+addEventListener('keyup', e => { keys[e.key] = false; });
+
+/* ---------------- Loop ---------------- */
+let last = performance.now(), T = 0;
+function frame(now){
+  const dt = Math.min(1 / 30, (now - last) / 1000); last = now; T += dt;
+  update(dt); draw(); requestAnimationFrame(frame);
+}
+
+function update(dt){
+  windT += dt;
+  wind = 45 * Math.sin(windT * 0.11) + 22 * Math.sin(windT * 0.37 + 1) + 8 * Math.sin(windT * 1.3);
+  const kmh = Math.round(Math.abs(wind) / 4 + 6);
+  document.getElementById('sWind').textContent = `hawa ${wind >= 0 ? '→' : '←'} ${kmh} km/h`;
+
+  // player target
+  if (player){
+    if (pointer.active){ player.tx = pointer.x; player.ty = pointer.y; }
+    const ks = 520 * dt;
+    if (keys.ArrowLeft) player.tx -= ks; if (keys.ArrowRight) player.tx += ks;
+    if (keys.ArrowUp) player.ty -= ks; if (keys.ArrowDown) player.ty += ks;
+    player.tx = clamp(player.tx, 20, W - 20); player.ty = clamp(player.ty, 30, roofY - 70);
+  }
+
+  for (const k of fallers){
+    k.t += dt;
+    {
+      k.cutT += dt;
+      k.vy += 22 * dt; k.vx += (wind * 0.9 - k.vx) * 0.6 * dt;
+      k.x += k.vx * dt; k.y += k.vy * dt + Math.sin(k.t * 2) * 0.4;
+      k.ang = Math.sin(k.t * 2.4) * 0.6;
+      stepRope(k.rope, dt, 12, null, { x: k.x, y: k.y }, 260);
+      if (k.y > H + 80 || k.x < -120 || k.x > W + 120) k.gone = true;
+    }
+  }
+  fallers = fallers.filter(k => !k.gone);
+  for (const k of [player, ...ais].filter(Boolean)){
+    k.t += dt;
+    if (k.owner === 'ai') think(k, dt);
+    steer(k, dt, k.owner === 'you' ? 14 : 7 + k.aggro * 3, k.owner === 'you' ? 5.5 : 4);
+    stepRope(k.rope, dt, ropeLen(k), k.anchor, { x: k.x, y: k.y }, 340);
+  }
+
+  // pench between the player's dor and each AI dor
+  let rub = 0;
+  for (const a of ais){
+    if (!player){ a.crossing = null; continue; }
+    const hit = findCross(player.rope, a.rope);
+    if (hit){
+      a.crossing = hit; player.crossing = hit;
+      const diff = (player.speed - a.speed * (0.5 + a.aggro * 0.3));
+      a.meter = clamp(a.meter + diff * dt * 0.0042, -1, 1);
+      rub = Math.max(rub, Math.min(1, (player.speed + a.speed) / 900));
+      if (!reduceMotion && Math.random() < (player.speed + a.speed) / 700) sparks.push({ x: hit.x, y: hit.y, vx: rnd(-90, 90), vy: rnd(-120, 20), life: rnd(.2, .45) });
+      if (a.meter >= 1) cutKite(a, hit, hit.j);
+      else if (a.meter <= -1){ cutKite(player, hit, hit.i); a.meter = 0; a.crossing = null; break; }
+    } else {
+      a.crossing = null; a.meter *= Math.pow(0.75, dt);
+    }
+  }
+  if (player && !ais.some(a => a.crossing)) player.crossing = null;
+  sound.rub(rub);
+
+  for (const d of debris){ d.life -= dt; stepRope(d.pts, dt, 10, d.anchor, null, 420); }
+  debris = debris.filter(d => d.life > 0);
+  for (const s of sparks){ s.life -= dt; s.vy += 420 * dt; s.x += s.vx * dt; s.y += s.vy * dt; }
+  sparks = sparks.filter(s => s.life > 0);
+  for (const s of shouts) s.t += dt;
+  shouts = shouts.filter(s => s.t < 1.8);
+  for (const d of decor){ d.x += (wind * 0.15 + d.drift) * dt; d.y += Math.sin(T * d.f + d.ph) * 0.15; if (d.x > W + 30) d.x = -30; if (d.x < -30) d.x = W + 30; }
+}
+
+/* ---------------- Drawing ---------------- */
+function drawSky(){
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#2b1d3f'); g.addColorStop(0.45, '#7a3550'); g.addColorStop(0.78, '#d9714f'); g.addColorStop(1, '#f2a65a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // low sun
+  const sx = W * 0.72, sy = roofY - H * 0.06, sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, H * 0.45);
+  sg.addColorStop(0, 'rgba(255,214,140,.95)'); sg.addColorStop(0.08, 'rgba(255,190,110,.6)'); sg.addColorStop(1, 'rgba(255,160,90,0)');
+  ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,226,170,.95)'; ctx.beginPath(); ctx.arc(sx, sy, Math.min(W, H) * 0.045, 0, Math.PI * 2); ctx.fill();
+  // haze bands
+  for (let i = 0; i < 4; i++){
+    const y = H * (0.22 + i * 0.13) + Math.sin(T * 0.1 + i) * 8, h = 40 + i * 14, hg = ctx.createLinearGradient(0, y - h, 0, y + h);
+    hg.addColorStop(0, 'rgba(255,200,160,0)'); hg.addColorStop(0.5, 'rgba(255,200,160,.05)'); hg.addColorStop(1, 'rgba(255,200,160,0)');
+    ctx.fillStyle = hg; ctx.fillRect(0, y - h, W, h * 2);
+  }
+}
+
+function drawSkyline(){
+  ctx.fillStyle = '#1a1220';
+  for (const r of roofs){
+    const top = H - r.h;
+    if (r.dome){
+      ctx.beginPath(); ctx.ellipse(r.x + r.w / 2, top + 10, r.w / 2, r.w * 0.45, 0, Math.PI, 0); ctx.fill();
+      ctx.fillRect(r.x, top + 10, r.w, r.h);
+      ctx.fillRect(r.x + r.w + 18, top - 70, 10, r.h + 70);      // minaret
+      ctx.beginPath(); ctx.arc(r.x + r.w + 23, top - 72, 8, Math.PI, 0); ctx.fill();
+      continue;
+    }
+    ctx.fillRect(r.x, top, r.w, r.h + 2);
+    if (r.tank){ ctx.fillRect(r.x + r.w * 0.6, top - 22, 22, 18); ctx.fillRect(r.x + r.w * 0.6 + 3, top - 4, 2, 4); ctx.fillRect(r.x + r.w * 0.6 + 17, top - 4, 2, 4); }
+    if (r.rail){ ctx.fillRect(r.x, top - 9, r.w, 2); for (let x = r.x; x < r.x + r.w; x += 9) ctx.fillRect(x, top - 9, 2, 9); }
+    // a few lit windows
+    ctx.fillStyle = 'rgba(255,196,110,.55)';
+    for (let i = 0; i < 3; i++) if ((r.win * 10 + i * 3.7) % 3 < 1) ctx.fillRect(r.x + 10 + i * 18, top + 18 + (i % 2) * 22, 7, 9);
+    ctx.fillStyle = '#1a1220';
+  }
+}
+
+function kiteShape(k, alpha = 1){
+  const s = k.size;
+  ctx.save(); ctx.translate(k.x, k.y); ctx.rotate(k.ang); ctx.globalAlpha = alpha;
+  // body: two-tone diamond (patang)
+  ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.8, 0); ctx.lineTo(0, s * 0.95); ctx.closePath(); ctx.fillStyle = k.pal[0]; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(-s * 0.8, 0); ctx.lineTo(0, s * 0.95); ctx.closePath(); ctx.fillStyle = k.pal[1]; ctx.fill();
+  // centre circle (chand)
+  ctx.beginPath(); ctx.arc(0, -s * 0.05, s * 0.22, 0, Math.PI * 2); ctx.fillStyle = k.pal[0] === '#ffd166' ? '#e63946' : '#fff3e4'; ctx.globalAlpha = alpha * 0.85; ctx.fill(); ctx.globalAlpha = alpha;
+  // spars
+  ctx.strokeStyle = 'rgba(40,20,20,.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(0, s * 0.95); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-s * 0.8, 0); ctx.quadraticCurveTo(0, -s * 0.35, s * 0.8, 0); ctx.stroke();
+  // tail (phundna)
+  ctx.beginPath(); ctx.moveTo(0, s * 0.95); ctx.lineTo(-s * 0.28, s * 1.35 + Math.sin(k.t * 9) * 2); ctx.lineTo(s * 0.28, s * 1.35 - Math.sin(k.t * 9) * 2); ctx.closePath();
+  ctx.fillStyle = k.pal[0]; ctx.fill();
+  ctx.restore();
+}
+
+function drawRope(pts, color, width, alpha = 1){
+  if (pts.length < 2) return;
+  ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i++){ const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2; ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my); }
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y); ctx.stroke(); ctx.globalAlpha = 1;
+}
+
+function drawMeter(a){
+  const c = a.crossing, w = 74, h = 6, x = c.x - w / 2, y = c.y + 16;
+  ctx.fillStyle = 'rgba(26,18,32,.65)'; ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+  ctx.fillStyle = '#f3e9dc'; ctx.fillRect(x, y, w / 2, h);
+  ctx.fillStyle = '#ff4d7d'; ctx.fillRect(x + w / 2, y, w / 2, h);
+  const nx = x + w / 2 + a.meter * (w / 2);
+  ctx.fillStyle = '#ffd166'; ctx.fillRect(nx - 2, y - 4, 4, h + 8);
+  ctx.font = '600 10px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff3e4';
+  ctx.fillText('PENCH', c.x, y + h + 14);
+}
+
+function draw(){
+  drawSky();
+  // far kites
+  for (const d of decor){ ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(Math.sin(T + d.ph) * 0.2); ctx.fillStyle = d.c; ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.moveTo(0, -d.s); ctx.lineTo(d.s * .8, 0); ctx.lineTo(0, d.s); ctx.lineTo(-d.s * .8, 0); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  ctx.globalAlpha = 1;
+  for (const d of debris) drawRope(d.pts, d.color, 1.3, Math.min(1, d.life));
+  for (const k of fallers) drawRope(k.rope, k.dor, 1.3, 0.8);
+  for (const k of ais) drawRope(k.rope, k.dor, 1.4, 0.9);
+  if (player) drawRope(player.rope, player.dor, 1.8, 0.95);
+  drawSkyline();
+  for (const k of fallers) kiteShape(k);
+  for (const k of ais) kiteShape(k);
+  if (player) kiteShape(player);
+  // player marker
+  if (player){ ctx.fillStyle = '#ffd166'; ctx.font = '600 11px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('aap', player.x, player.y - player.size - 10); }
+  // roof spool markers
+  { const an = anchorFor('you'); ctx.fillStyle = '#ff4d7d'; ctx.beginPath(); ctx.arc(an.x, an.y, 4, 0, Math.PI * 2); ctx.fill(); }
+  for (const a of ais) if (a.crossing) drawMeter(a);
+  for (const s of sparks){ ctx.fillStyle = `rgba(255,214,120,${Math.min(1, s.life * 2)})`; ctx.fillRect(s.x, s.y, 2.4, 2.4); }
+  for (const s of shouts){
+    const p = s.t / 1.8, a = p < .15 ? p / .15 : 1 - Math.max(0, (p - .6) / .4);
+    ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center';
+    const size = Math.min(W * 0.12, 64) * (1 + (1 - Math.min(1, p * 4)) * 0.4);
+    ctx.font = `${size}px "Rozha One", Georgia, serif`; ctx.fillStyle = s.mine ? '#ffd166' : '#fff3e4';
+    ctx.shadowColor = 'rgba(26,18,32,.6)'; ctx.shadowBlur = 16;
+    const half = ctx.measureText(s.text).width / 2 + 12;
+    const y = clamp(s.y - 40 - p * 40, size, roofY - 40), x = clamp(s.x, half, Math.max(half, W - half));
+    ctx.fillText(s.text, x, y);
+    ctx.font = `700 ${size * 0.42}px "Noto Nastaliq Urdu", serif`; ctx.fillStyle = '#fff3e4';
+    ctx.fillText(s.mine ? 'بو کاٹا' : 'کٹ گئی', x, y + size * 0.75);
+    ctx.restore();
+  }
+  // intro hint until the viewer touches the sky
+  if (!pointer.active && !Object.values(keys).some(Boolean) && player){
+    const a = 0.55 + Math.sin(T * 3) * 0.35;
+    ctx.globalAlpha = a; ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(player.x + 70, player.y + 40, 16 + Math.sin(T * 3) * 4, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ffd166'; ctx.font = '500 12px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+    ctx.fillText('drag here', player.x + 92, player.y + 44); ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------------- Setup ---------------- */
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  buildSkyline();
+  if (player) player.anchor = anchorFor('you');
+  for (const a of ais) a.anchor = anchorFor(a.side);
+}
+addEventListener('resize', resize);
+resize();
+decor.length = 0;
+for (let i = 0; i < 9; i++) decor.push({ x: rnd(0, W), y: rnd(H * 0.08, H * 0.45), s: rnd(4, 8), c: PALETTES[i % PALETTES.length][i % 2], drift: rnd(-6, 6), f: rnd(.5, 1.2), ph: rnd(0, 6) });
+spawnPlayer(); spawnAI(); spawnAI();
+// let the sky settle so the first frame already shows kites aloft
+for (let i = 0; i < 90; i++) update(1 / 60);
+window.__kata = { get player(){ return player; }, get ais(){ return ais; }, get score(){ return [cutCount, lostCount]; }, pointer };
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+
+</body>
+</html>
