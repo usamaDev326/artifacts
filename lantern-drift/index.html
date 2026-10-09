@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Lantern Drift</title>
+  <style>
+    :root {
+      --bg-1: #070b1d;
+      --bg-2: #141d38;
+      --bg-3: #243768;
+      --river-1: #0e1d35;
+      --river-2: #0f2b4a;
+      --gold: #ffd166;
+      --pink: #ff78b7;
+      --cyan: #72e4ff;
+      --mist: rgba(255,255,255,0.12);
+      --ink: #fef9ef;
+      --ink-soft: rgba(254,249,239,.74);
+      --line: rgba(255,255,255,.12);
+      --danger: #ff6f7d;
+      --panel: rgba(11, 15, 29, 0.72);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: radial-gradient(circle at 50% 10%, #2a335f 0%, var(--bg-2) 20%, var(--bg-1) 60%);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: transparent;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .hud {
+      position: fixed;
+      left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      pointer-events: none;
+      padding: 18px 18px 0;
+      z-index: 2;
+    }
+
+    .title {
+      max-width: 40ch;
+      pointer-events: none;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: clamp(2.2rem, 6vw, 5rem);
+      letter-spacing: .08em;
+      line-height: 0.86;
+      font-weight: 800;
+      text-transform: uppercase;
+      text-shadow: 0 10px 30px rgba(255, 209, 102, 0.25);
+    }
+
+    .title h1 span { color: var(--gold); }
+    .title p {
+      margin: 8px 0 0;
+      color: var(--ink-soft);
+      line-height: 1.5;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      font-size: .72rem;
+    }
+
+    .stats {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+      pointer-events: auto;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: rgba(16, 24, 44, .45);
+      border-radius: 999px;
+      padding: 7px 12px;
+      color: var(--ink);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: .72rem;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      white-space: nowrap;
+    }
+    .chip b { color: var(--gold); }
+    button.chip {
+      cursor: pointer;
+      transition: transform .15s ease, border-color .15s ease;
+      font: inherit;
+    }
+    button.chip:hover { transform: translateY(-1px); border-color: rgba(255,209,102,.7); }
+
+    .footer {
+      position: fixed;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .hint {
+      max-width: 60ch;
+      color: var(--ink-soft);
+      font-size: .76rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      line-height: 1.6;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(15, 20, 34, .38);
+      padding: 10px 12px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+    .hint strong { color: var(--ink); }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4, 7, 16, 0.42);
+      z-index: 5;
+      padding: 18px;
+    }
+
+    .panel {
+      width: min(500px, 100%);
+      background: rgba(10, 15, 29, 0.85);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.2rem);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      line-height: .9;
+    }
+    .panel h2 span { color: var(--gold); }
+    .panel p {
+      margin: 0 0 12px;
+      color: var(--ink-soft);
+      line-height: 1.6;
+    }
+    .panel ul {
+      margin: 0 0 14px;
+      padding-left: 18px;
+      color: var(--ink-soft);
+      line-height: 1.7;
+    }
+    .panel b { color: var(--ink); }
+    .go {
+      all: unset;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, var(--gold), #ffaf5f);
+      color: #1d1205;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: .9rem;
+      border-radius: 14px;
+      padding: 14px 18px;
+      cursor: pointer;
+      margin-top: 10px;
+      box-shadow: 0 10px 24px rgba(255, 209, 102, 0.28);
+    }
+    .go:hover { filter: brightness(1.06); }
+    .go:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 700px){
+      .hud { padding: 14px 14px 0; }
+      .title p, .hint { display: none; }
+      .stats { align-items: flex-start; }
+      .row { justify-content: flex-start; }
+      .footer { left: 14px; right: 14px; bottom: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c" aria-label="Lantern Drift game canvas"></canvas>
+
+  <div class="hud">
+    <div class="title">
+      <h1>Lantern <span>Drift</span></h1>
+      <p>Guide the glowing boat across the dream river</p>
+    </div>
+    <div class="stats">
+      <div class="row">
+        <span class="chip">wish <b id="score">0</b></span>
+        <span class="chip">best <b id="best">0</b></span>
+      </div>
+      <div class="row">
+        <span class="chip">time <b id="timer">45</b>s</span>
+        <span class="chip">soul <b id="health">3</b></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="hint"><strong>move</strong> with drag or arrow keys • collect lanterns • dodge the storm waves</div>
+    <button id="soundBtn" class="chip" type="button" aria-pressed="true">sound: on</button>
+  </div>
+
+  <div id="overlay" class="overlay">
+    <div class="panel">
+      <h2>Lantern <span>Drift</span></h2>
+      <p>Night river par aapka paper boat chalta hai. Har glowing lantern ek dua hai — inhe ikattha karo.</p>
+      <ul>
+        <li><b>Collect:</b> floating lanterns for points.</li>
+        <li><b>Avoid:</b> storm waves and dark clouds that drain your soul.</li>
+        <li><b>Tip:</b> drift smoothly, don’t chase every lantern.</li>
+      </ul>
+      <p>Sabse zyada wishes collect karke ek magical night banaiye.</p>
+      <button id="startBtn" class="go" type="button">Start the Drift</button>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const cv = document.getElementById('c');
+      const ctx = cv.getContext('2d');
+      const overlay = document.getElementById('overlay');
+      const scoreEl = document.getElementById('score');
+      const bestEl = document.getElementById('best');
+      const timerEl = document.getElementById('timer');
+      const healthEl = document.getElementById('health');
+      const startBtn = document.getElementById('startBtn');
+      const soundBtn = document.getElementById('soundBtn');
+
+      const pointer = { x: 0, y: 0, active: false };
+      const keys = { left: false, right: false, up: false, down: false };
+      let W = 0, H = 0, DPR = 1, last = 0;
+      let state = 'intro';
+      let score = 0, best = Number(localStorage.getItem('lantern-drift-best') || 0);
+      let timeLeft = 45, health = 3;
+      let lanterns = [], clouds = [], sparks = [], stars = [];
+      let boat = null;
+      const palette = ['#ffd166','#ff9ecb','#7ee7ff','#b3f58c','#d7b9ff'];
+
+      function rnd(a, b) { return a + Math.random() * (b - a); }
+      function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+      function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
+
+      function resize() {
+        DPR = Math.min(2, window.devicePixelRatio || 1);
+        W = window.innerWidth;
+        H = window.innerHeight;
+        cv.width = Math.round(W * DPR);
+        cv.height = Math.round(H * DPR);
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        if (!boat) spawnBoat();
+        else {
+          boat.x = clamp(boat.x, 40, W - 40);
+          boat.y = clamp(boat.y, 60, H - 40);
+        }
+        replenishStars();
+      }
+
+      function replenishStars() {
+        stars = Array.from({ length: Math.max(50, Math.round(W / 18)) }, () => ({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.5,
+          r: Math.random() * 2.1 + 0.8,
+          a: Math.random() * 0.9 + 0.2,
+          drift: Math.random() * 0.8 + 0.3
+        }));
+      }
+
+      function spawnBoat() {
+        boat = {
+          x: W * 0.5,
+          y: H * 0.73,
+          vx: 0,
+          vy: 0,
+          size: 18,
+          bob: 0,
+          glow: 0
+        };
+      }
+
+      function makeLantern() {
+        const edge = Math.random();
+        const x = edge < 0.25 ? -30 : edge < 0.5 ? W + 30 : Math.random() * W;
+        const y = rnd(H * 0.12, H * 0.78);
+        return {
+          x,
+          y,
+          r: rnd(8, 14),
+          hue: palette[Math.floor(Math.random() * palette.length)],
+          drift: rnd(0.5, 1.7),
+          phase: Math.random() * Math.PI * 2,
+          targetX: rnd(50, W - 50),
+          targetY: rnd(60, H - 60),
+          twinkle: Math.random() * 100
+        };
+      }
+
+      function makeCloud() {
+        const isWave = Math.random() < 0.4;
+        return {
+          x: Math.random() * W,
+          y: rnd(H * 0.18, H * 0.86),
+          r: rnd(24, 58),
+          vx: isWave ? rnd(-35, -120) : rnd(40, 120),
+          vy: rnd(-10, 10),
+          type: isWave ? 'wave' : 'storm',
+          phase: Math.random() * Math.PI * 2,
+          damage: isWave ? 1 : 1.6
+        };
+      }
+
+      function populateWorld() {
+        lanterns = Array.from({ length: 10 }, makeLantern);
+        clouds = Array.from({ length: 6 }, makeCloud);
+        sparks = [];
+      }
+
+      function updateHUD() {
+        scoreEl.textContent = String(score);
+        bestEl.textContent = String(best);
+        timerEl.textContent = String(Math.max(0, Math.ceil(timeLeft)));
+        healthEl.textContent = String(Math.max(0, Math.ceil(health)));
+      }
+
+      function setState(next) {
+        state = next;
+        overlay.classList.toggle('hidden', next === 'play');
+        if (next === 'play') {
+          window.focus();
+        }
+      }
+
+      function startGame() {
+        score = 0;
+        health = 3;
+        timeLeft = 45;
+        populateWorld();
+        if (!boat) spawnBoat();
+        boat.x = W * 0.5;
+        boat.y = H * 0.7;
+        boat.vx = 0;
+        boat.vy = 0;
+        updateHUD();
+        setState('play');
+      }
+
+      function endGame() {
+        best = Math.max(best, score);
+        localStorage.setItem('lantern-drift-best', String(best));
+        updateHUD();
+        setState('intro');
+        startBtn.textContent = score >= 10 ? 'Play again' : 'Start the Drift';
+      }
+
+      function emitBurst(x, y, color, count = 18) {
+        for (let i = 0; i < count; i++) {
+          sparks.push({
+            x,
+            y,
+            vx: rnd(-160, 160),
+            vy: rnd(-150, 120),
+            life: rnd(0.45, 0.9),
+            color,
+            size: rnd(2, 4)
+          });
+        }
+      }
+
+      function update(dt) {
+        if (state !== 'play') return;
+
+        timeLeft -= dt;
+        if (timeLeft <= 0) {
+          endGame();
+          return;
+        }
+
+        const targetX = (pointer.active ? pointer.x : 0) + (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+        const targetY = (pointer.active ? pointer.y : H * 0.7) + (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
+
+        if (pointer.active || keys.left || keys.right || keys.up || keys.down) {
+          const dx = targetX - boat.x;
+          const dy = targetY - boat.y;
+          const mag = Math.hypot(dx, dy) || 1;
+          const force = 200;
+          boat.vx += (dx / mag) * force * dt;
+          boat.vy += (dy / mag) * force * dt;
+        }
+
+        boat.vx *= 0.88;
+        boat.vy *= 0.88;
+        boat.x += boat.vx * dt;
+        boat.y += boat.vy * dt;
+        boat.x = clamp(boat.x, 26, W - 26);
+        boat.y = clamp(boat.y, 32, H - 28);
+        boat.bob += dt * 4;
+        boat.glow += dt * 10;
+
+        for (let i = lanterns.length - 1; i >= 0; i--) {
+          const l = lanterns[i];
+          l.phase += dt * l.drift;
+          l.x += Math.sin(l.phase + i) * 12 * dt;
+          l.y += Math.sin(l.phase * 1.7 + i) * 18 * dt;
+          if (dist(boat.x, boat.y, l.x, l.y) < boat.size + l.r + 8) {
+            score += 1;
+            emitBurst(l.x, l.y, l.hue, 16);
+            lanterns.splice(i, 1);
+            lanterns.push(makeLantern());
+          }
+        }
+
+        for (let i = clouds.length - 1; i >= 0; i--) {
+          const c = clouds[i];
+          c.x += c.vx * dt;
+          c.y += Math.sin((performance.now() * 0.001) + c.phase) * 14 * dt;
+          if (c.x < -120) c.x = W + 100;
+          if (c.x > W + 120) c.x = -100;
+
+          if (dist(boat.x, boat.y, c.x, c.y) < boat.size + c.r) {
+            health -= c.damage;
+            emitBurst(boat.x, boat.y, '#ff6f7d', 20);
+            clouds.splice(i, 1);
+            clouds.push(makeCloud());
+            if (health <= 0) {
+              endGame();
+              return;
+            }
+          }
+        }
+
+        while (clouds.length < 6) clouds.push(makeCloud());
+
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const s = sparks[i];
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+          s.vy += 110 * dt;
+          s.life -= dt;
+          if (s.life <= 0) sparks.splice(i, 1);
+        }
+
+        updateHUD();
+      }
+
+      function drawBackground(t) {
+        const sky = ctx.createLinearGradient(0, 0, 0, H);
+        sky.addColorStop(0, '#0a1128');
+        sky.addColorStop(0.5, '#1c2448');
+        sky.addColorStop(1, '#0d1a2d');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, W, H);
+
+        const moonX = W * 0.72, moonY = H * 0.18;
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255, 248, 202, 0.9)';
+        ctx.arc(moonX, moonY, 42, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        for (const star of stars) {
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(255,255,255,${star.a + Math.sin(t * star.drift + star.x) * 0.2})`;
+          ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.fillStyle = 'rgba(92, 150, 255, 0.16)';
+        for (let i = 0; i < 4; i++) {
+          const y = H * (0.15 + i * 0.18);
+          ctx.fillRect(0, y, W, 1);
+        }
+
+        const river = ctx.createLinearGradient(0, H * 0.32, 0, H);
+        river.addColorStop(0, 'rgba(21, 46, 74, 0.55)');
+        river.addColorStop(0.22, 'rgba(23, 55, 82, 0.88)');
+        river.addColorStop(1, 'rgba(7, 14, 28, 1)');
+        ctx.fillStyle = river;
+        ctx.fillRect(0, H * 0.32, W, H * 0.68);
+
+        ctx.strokeStyle = 'rgba(125, 209, 255, 0.28)';
+        ctx.lineWidth = 1;
+        for (let y = H * 0.35; y < H; y += 18) {
+          ctx.beginPath();
+          ctx.moveTo(0, y + Math.sin(t + y * .08) * 4);
+          ctx.lineTo(W, y + Math.cos(t * 1.5 + y * .12) * 4);
+          ctx.stroke();
+        }
+      }
+
+      function drawLantern(l, t) {
+        const bob = Math.sin(t * 2 + l.phase) * 7;
+        const glow = 16 + Math.sin(t * 5 + l.phase) * 4;
+
+        ctx.beginPath();
+        ctx.fillStyle = l.hue;
+        ctx.shadowColor = l.hue;
+        ctx.shadowBlur = glow;
+        ctx.arc(l.x, l.y + bob, l.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(l.x, l.y + bob + l.r);
+        ctx.lineTo(l.x, l.y + bob + l.r + 13);
+        ctx.stroke();
+      }
+
+      function drawCloud(c, t) {
+        const pulse = 1 + Math.sin(t * 2 + c.phase) * 0.15;
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.scale(pulse, pulse);
+        ctx.beginPath();
+        ctx.fillStyle = c.type === 'storm' ? 'rgba(22, 30, 48, 0.78)' : 'rgba(122, 164, 224, 0.35)';
+        ctx.arc(0, 0, c.r, 0, Math.PI * 2);
+        ctx.arc(c.r * 0.75, -12, c.r * 0.72, 0, Math.PI * 2);
+        ctx.arc(-c.r * 0.68, -18, c.r * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawBoat() {
+        const sway = Math.sin(performance.now() * 0.005 + boat.bob) * 7;
+        const glow = 20 + Math.sin(performance.now() * 0.01) * 8;
+
+        ctx.save();
+        ctx.translate(boat.x, boat.y + sway);
+        ctx.shadowColor = '#ffd166';
+        ctx.shadowBlur = glow;
+
+        ctx.fillStyle = '#f8dba4';
+        ctx.beginPath();
+        ctx.moveTo(0, -18);
+        ctx.lineTo(16, 0);
+        ctx.lineTo(0, 18);
+        ctx.lineTo(-16, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#ffb86b';
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(0, -8);
+        ctx.lineTo(4, 0);
+        ctx.lineTo(0, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#ffd166';
+        ctx.beginPath();
+        ctx.arc(0, -6, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawSparks() {
+        for (const s of sparks) {
+          ctx.fillStyle = s.color + (Math.floor((s.life / 0.9) * 255)).toString(16).padStart(2, '0');
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+        }
+      }
+
+      function draw() {
+        const t = performance.now() * 0.001;
+        drawBackground(t);
+
+        for (const l of lanterns) drawLantern(l, t);
+        for (const c of clouds) drawCloud(c, t);
+        drawBoat();
+        drawSparks();
+
+        if (state === 'play') {
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.font = '600 16px Segoe UI';
+          ctx.textAlign = 'left';
+          ctx.fillText('Collect every wish before the night slips away.', 20, H - 30);
+        }
+      }
+
+      function frame(now) {
+        const dt = Math.min(0.033, (now - last) / 1000 || 0.016);
+        last = now;
+        update(dt);
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      function onPointerMove(e) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = e.clientX - rect.left;
+        pointer.y = e.clientY - rect.top;
+        pointer.active = true;
+      }
+
+      cv.addEventListener('pointerdown', (e) => {
+        onPointerMove(e);
+        pointer.active = true;
+      });
+      cv.addEventListener('pointermove', onPointerMove);
+      cv.addEventListener('pointerleave', () => { pointer.active = false; });
+      cv.addEventListener('pointerup', () => { pointer.active = false; });
+
+      addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = true;
+        if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = true;
+        if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') keys.up = true;
+        if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') keys.down = true;
+      });
+      addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = false;
+        if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') keys.up = false;
+        if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') keys.down = false;
+      });
+
+      startBtn.addEventListener('click', startGame);
+
+      const sound = (() => {
+        let ac = null;
+        let gain = null;
+        let on = true;
+
+        function ensure() {
+          if (ac) return;
+          ac = new (window.AudioContext || window.webkitAudioContext)();
+          gain = ac.createGain();
+          gain.gain.value = on ? 0.08 : 0;
+          gain.connect(ac.destination);
+        }
+
+        function tone(freq, start, duration, type = 'sine', volume = 0.05) {
+          if (!ac || !gain) return;
+          const o = ac.createOscillator();
+          const g = ac.createGain();
+          o.type = type;
+          o.frequency.setValueAtTime(freq, ac.currentTime + start);
+          g.gain.setValueAtTime(0.0001, ac.currentTime + start);
+          g.gain.exponentialRampToValueAtTime(volume, ac.currentTime + start + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + start + duration);
+          o.connect(g);
+          g.connect(gain);
+          o.start(ac.currentTime + start);
+          o.stop(ac.currentTime + start + duration + 0.02);
+        }
+
+        return {
+          toggle() {
+            on = !on;
+            ensure();
+            if (gain) gain.gain.value = on ? 0.08 : 0;
+            return on;
+          },
+          collect() {
+            tone(660, 0, 0.12, 'triangle', 0.05);
+            tone(880, 0.05, 0.14, 'triangle', 0.04);
+          },
+          hit() {
+            tone(210, 0, 0.15, 'sawtooth', 0.06);
+          }
+        };
+      })();
+
+      soundBtn.addEventListener('click', () => {
+        const enabled = sound.toggle();
+        soundBtn.textContent = 'sound: ' + (enabled ? 'on' : 'off');
+        soundBtn.setAttribute('aria-pressed', String(enabled));
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && state === 'play') {
+          endGame();
+        }
+      });
+
+      bestEl.textContent = String(best);
+      updateHUD();
+      resize();
+      populateWorld();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
