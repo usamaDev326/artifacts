@@ -155,3 +155,50 @@ $('soundBtn').addEventListener('click', e => {
   sound.init(); const on = sound.toggle(); e.currentTarget.textContent = 'sound: ' + (on ? 'on' : 'off'); e.currentTarget.setAttribute('aria-pressed', on);
 });
 
+/* ---------------- Game flow ---------------- */
+function reset(){
+  dist = 0; points = 0; diyaCount = 0; combo = 0; comboT = 0; flame = 100; inv = 0; shake = 0; overT = 0;
+  diyas = []; pools = []; rocks = []; logs = []; sparks = []; shouts = []; trail = [];
+  boat = { x: W / 2, y: H * 0.72, vx: 0, vy: 0, ang: 0, rock: 0 };
+  nextChunk = 0;
+  for (let y = H * 0.25; y > -400; y -= 230) spawnChunk(y);
+  pools = pools.filter(p => p.y < H * 0.3); rocks = rocks.filter(r => r.y < H * 0.3); logs = logs.filter(l => l.y < H * 0.3);
+  state = 'ready';
+  hud();
+}
+
+function start(){ if (state === 'ready') state = 'play'; }
+
+function hit(){
+  flame -= 22; inv = 1.3; shake = 0.35; boat.rock = 1;
+  if (combo >= 5) shouts.push({ x: boat.x, y: boat.y - 40, t: 0, text: 'Combo toot gaya', ur: '', small: true });
+  combo = 0; comboT = 0;
+  for (let i = 0; i < (reduceMotion ? 5 : 22); i++) sparks.push({ x: boat.x, y: boat.y, vx: rnd(-160, 160), vy: rnd(-160, 80), life: rnd(.3, .7), c: '#9fd8ff' });
+  sound.splash();
+}
+
+function gameOver(){
+  state = 'over'; overT = 0;
+  const s = score();
+  if (s > best){ best = s; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+  sound.over(); hud();
+}
+
+const SHOUTS = [['Shabash!', 'شاباش'], ['Wah wah!', 'واہ واہ'], ['Kamaal!', 'کمال'], ['Chha gaye!', 'چھا گئے'], ['Raja beta!', 'راجہ بیٹا']];
+function collect(dy){
+  combo = comboT > 0 ? combo + 1 : 1; comboT = 1.7;
+  diyaCount++; points += (dy.gold ? 5 : 1) * combo;
+  flame = Math.min(100, flame + (dy.gold ? 30 : 8));
+  for (let i = 0; i < (reduceMotion ? 4 : (dy.gold ? 26 : 12)); i++) sparks.push({ x: dy.x, y: dy.y, vx: rnd(-120, 120), vy: rnd(-170, 20), life: rnd(.3, .8), c: dy.gold ? '#ffe08a' : '#ffb35c' });
+  if (combo % 5 === 0){ const [en, ur] = SHOUTS[Math.min(SHOUTS.length - 1, combo / 5 - 1)]; shouts.push({ x: dy.x, y: dy.y, t: 0, text: en, ur }); }
+  else if (dy.gold) shouts.push({ x: dy.x, y: dy.y, t: 0, text: 'Sone ka diya!', ur: '', small: true });
+  sound.chime(combo, dy.gold);
+}
+
+function hud(){
+  $('sDiye').textContent = diyaCount;
+  $('sCombo').textContent = combo > 1 ? '×' + combo : '–';
+  $('sBest').textContent = best;
+  $('sLau').style.width = Math.max(0, flame) + '%';
+}
+
