@@ -311,3 +311,67 @@ function update(dt){
   hud();
 }
 
+/* ---------------- Drawing ---------------- */
+function drawRiver(){
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#0a1a2c'); g.addColorStop(0.5, '#0d2438'); g.addColorStop(1, '#0a1c2a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // moon's path on the water
+  const mg = ctx.createLinearGradient(W * 0.62 - 50, 0, W * 0.62 + 50, 0);
+  mg.addColorStop(0, 'rgba(255,240,200,0)'); mg.addColorStop(0.5, 'rgba(255,240,200,.05)'); mg.addColorStop(1, 'rgba(255,240,200,0)');
+  ctx.fillStyle = mg; ctx.fillRect(W * 0.62 - 50, 0, 100, H);
+  ctx.strokeStyle = 'rgba(160,215,240,.13)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  for (const s of streaks){ ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.quadraticCurveTo(s.x + 6, s.y + s.len / 2, s.x, s.y + s.len); ctx.stroke(); }
+}
+
+function drawBanks(){
+  const off = dist % 16;
+  for (const [x0, w, edge] of [[0, bankL, bankL], [bankR, W - bankR, bankR]]){
+    ctx.fillStyle = '#231812'; ctx.fillRect(x0, 0, w, H);
+    ctx.fillStyle = '#2f2118';                          // ghat steps
+    for (let y = -16 + off; y < H; y += 16) ctx.fillRect(x0, y, w, 7);
+    ctx.fillStyle = 'rgba(200,230,255,.18)'; ctx.fillRect(edge - 1.5, 0, 3, H);
+  }
+  for (const o of deco){
+    const x = o.side < 0 ? bankL * 0.5 : bankR + (W - bankR) * 0.5;
+    if (o.kind < 0.45){                                 // diya resting on the ghat
+      const fl = 0.8 + Math.sin(T * 9 + o.y) * 0.2;
+      const gg = ctx.createRadialGradient(x, o.y, 1, x, o.y, 26 * fl); gg.addColorStop(0, 'rgba(255,170,80,.55)'); gg.addColorStop(1, 'rgba(255,140,60,0)');
+      ctx.fillStyle = gg; ctx.fillRect(x - 30, o.y - 30, 60, 60);
+      ctx.fillStyle = '#ffcf7a'; ctx.beginPath(); ctx.arc(x, o.y, 2.5, 0, Math.PI * 2); ctx.fill();
+    } else if (o.kind < 0.7 && bankL > 40){             // small chhatri
+      ctx.fillStyle = '#120c09'; ctx.fillRect(x - 12, o.y - 6, 24, 16); ctx.beginPath(); ctx.arc(x, o.y - 6, 12, Math.PI, 0); ctx.fill();
+    }
+  }
+}
+
+function drawPool(p){
+  ctx.save(); ctx.translate(p.x, p.y);
+  const g = ctx.createRadialGradient(0, 0, 2, 0, 0, p.R * 1.4); g.addColorStop(0, 'rgba(2,8,16,.85)'); g.addColorStop(1, 'rgba(2,8,16,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, p.R * 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(T * 2.4 * p.spin); ctx.strokeStyle = 'rgba(170,220,240,.35)'; ctx.lineWidth = 1.5;
+  for (let k = 0; k < 4; k++){
+    ctx.rotate(Math.PI / 2); ctx.beginPath();
+    for (let a = 0; a < 2.6; a += 0.15){ const rr = p.R * (1.25 - a / 2.6), x = Math.cos(a * p.spin) * rr, y = Math.sin(a * p.spin) * rr; a ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawRock(r){
+  ctx.fillStyle = 'rgba(200,235,255,.14)'; ctx.beginPath(); ctx.ellipse(r.x, r.y + 4, r.r + 6 + Math.sin(T * 4 + r.seed * 9) * 2, r.r * 0.7 + 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2a2f36'; ctx.beginPath();
+  for (let i = 0; i < 7; i++){ const a = i / 7 * Math.PI * 2, rr = r.r * (0.82 + ((r.seed * 97 * (i + 1)) % 1) * 0.3); i ? ctx.lineTo(r.x + Math.cos(a) * rr, r.y + Math.sin(a) * rr * 0.8) : ctx.moveTo(r.x + Math.cos(a) * rr, r.y + Math.sin(a) * rr * 0.8); }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.beginPath(); ctx.ellipse(r.x - r.r * 0.2, r.y - r.r * 0.3, r.r * 0.5, r.r * 0.25, -0.3, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawLog(l){
+  ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.ang);
+  ctx.fillStyle = 'rgba(200,235,255,.12)'; ctx.beginPath(); ctx.ellipse(0, 5, l.len / 2 + 8, 14, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4a3121'; ctx.beginPath(); ctx.roundRect(-l.len / 2, -9, l.len, 18, 9); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-l.len / 2 + 10, -2); ctx.lineTo(l.len / 2 - 14, -3); ctx.moveTo(-l.len / 2 + 18, 4); ctx.lineTo(l.len / 2 - 8, 3); ctx.stroke();
+  ctx.fillStyle = '#7a5537'; ctx.beginPath(); ctx.ellipse(l.len / 2, 0, 4, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
