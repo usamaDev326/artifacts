@@ -220,3 +220,94 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { const dir = { arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r', arrowup: 'u', w: 'u', arrowdown: 'd', s: 'd' }[e.key.toLowerCase()]; if (dir) keys[dir] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
+/* ---------------- Update ---------------- */
+let tx = 0, ty = 0;
+function update(dt){
+  T += dt;
+  const d = difficulty();
+  speed = state === 'play' ? 120 + d * 150 : state === 'ready' ? 55 : 30;
+  dist += speed * dt;
+
+  if (state === 'play'){
+    flame -= (5 + d * 4) * dt;
+    comboT -= dt; if (comboT <= 0) combo = 0;
+    inv = Math.max(0, inv - dt);
+  }
+  if (state === 'over') overT += dt;
+  shake = Math.max(0, shake - dt);
+
+  // spawn new stretches of river
+  nextChunk -= speed * dt;
+  if (nextChunk <= 0){ spawnChunk(-60); nextChunk = rnd(200, 270) - d * 50; }
+
+  // boat steering: a stiff spring toward the target, like a paddle stroke
+  if (!tx){ tx = boat.x; ty = boat.y; }
+  if (pointer.active && state === 'play'){ tx = pointer.x; ty = pointer.y - (pointer.touch ? 70 : 0); }
+  const ks = 520 * dt;
+  if (keys.l) tx -= ks; if (keys.r) tx += ks; if (keys.u) ty -= ks; if (keys.d) ty += ks;
+  if (state !== 'play'){ tx = W / 2 + Math.sin(T * 0.7) * 30; ty = H * 0.72; }
+  tx = clamp(tx, bankL + 18, bankR - 18); ty = clamp(ty, H * 0.28, H - 50);
+
+  let ax = (tx - boat.x) * 15 - boat.vx * 5.5, ay = (ty - boat.y) * 15 - boat.vy * 5.5 + 40;
+  for (const p of pools){
+    const dx = p.x - boat.x, dy = p.y - boat.y, dd = Math.hypot(dx, dy) || 1, reach = p.R * 2.6;
+    if (dd < reach){
+      const f = 1 - dd / reach;
+      ax += dx / dd * 1500 * f + (-dy / dd) * p.spin * 900 * f;
+      ay += dy / dd * 1500 * f + (dx / dd) * p.spin * 900 * f;
+      if (state === 'play' && dd < p.R * 0.45 && inv <= 0){ hit(); boat.vx = -dx / dd * 700; boat.vy = -dy / dd * 700; }
+    }
+  }
+  boat.vx += ax * dt; boat.vy += ay * dt;
+  boat.x += boat.vx * dt; boat.y += boat.vy * dt;
+  if (boat.x < bankL + 16){ boat.x = bankL + 16; boat.vx = Math.abs(boat.vx) * 0.4; }
+  if (boat.x > bankR - 16){ boat.x = bankR - 16; boat.vx = -Math.abs(boat.vx) * 0.4; }
+  boat.y = clamp(boat.y, H * 0.2, H - 30);
+  boat.rock = Math.max(0, boat.rock - dt * 1.5);
+  boat.ang += ((clamp(boat.vx / 600, -0.5, 0.5) + Math.sin(T * 2) * 0.05 + Math.sin(T * 22) * boat.rock * 0.3) - boat.ang) * Math.min(1, dt * 8);
+
+  // scroll the river
+  for (const o of diyas) o.y += speed * dt;
+  for (const p of pools) p.y += speed * dt;
+  for (const r of rocks) r.y += speed * dt;
+  for (const l of logs){ l.y += speed * dt; l.x += l.vx * dt; l.ang += l.spin * dt; }
+  for (const s of streaks){ s.y += (speed * 1.1 + s.v) * dt; if (s.y > H + 40){ s.y = -40; s.x = rnd(bankL, bankR); } }
+  for (const o of deco){ o.y += speed * dt; if (o.y > H + 80){ o.y -= H + 200; o.kind = Math.random(); } }
+  for (const t of trail){ t.y += speed * dt; t.life -= dt; }
+  trail = trail.filter(t => t.life > 0);
+  if (Math.hypot(boat.vx, boat.vy) > 30 || T % 0.15 < dt) trail.push({ x: boat.x, y: boat.y + 14, life: 1 });
+
+  if (state === 'play'){
+    for (const r of rocks){
+      const dx = boat.x - r.x, dy = boat.y - r.y, dd = Math.hypot(dx, dy) || 1, min = r.r + 15;
+      if (dd < min){
+        boat.x = r.x + dx / dd * min; boat.y = r.y + dy / dd * min;
+        boat.vx = dx / dd * 380; boat.vy = dy / dd * 380;
+        if (inv <= 0) hit();
+      }
+    }
+    for (const l of logs){
+      const hx = Math.cos(l.ang) * l.len / 2, hy = Math.sin(l.ang) * l.len / 2;
+      const ax2 = l.x - hx, ay2 = l.y - hy, bx = l.x + hx, by = l.y + hy;
+      const t = clamp(((boat.x - ax2) * (bx - ax2) + (boat.y - ay2) * (by - ay2)) / (l.len * l.len), 0, 1);
+      const px = ax2 + (bx - ax2) * t, py = ay2 + (by - ay2) * t, dx = boat.x - px, dy = boat.y - py, dd = Math.hypot(dx, dy) || 1;
+      if (dd < 24){ boat.x = px + dx / dd * 24; boat.y = py + dy / dd * 24; boat.vx = dx / dd * 360 + l.vx; boat.vy = dy / dd * 360; if (inv <= 0) hit(); }
+    }
+    for (let i = diyas.length - 1; i >= 0; i--){
+      const o = diyas[i];
+      if (Math.hypot(o.x - boat.x, o.y - boat.y) < (o.gold ? 34 : 30)){ collect(o); diyas.splice(i, 1); }
+    }
+    if (flame <= 0){ flame = 0; gameOver(); }
+  }
+
+  diyas = diyas.filter(o => o.y < H + 40);
+  pools = pools.filter(p => p.y < H + p.R * 3);
+  rocks = rocks.filter(r => r.y < H + 40);
+  logs = logs.filter(l => l.y < H + 80 && l.x > -200 && l.x < W + 200);
+  for (const s of sparks){ s.life -= dt; s.vy += 300 * dt; s.x += s.vx * dt; s.y += s.vy * dt; }
+  sparks = sparks.filter(s => s.life > 0);
+  for (const s of shouts) s.t += dt;
+  shouts = shouts.filter(s => s.t < 1.6);
+  hud();
+}
+
