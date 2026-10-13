@@ -88,3 +88,29 @@ const keys = {};
 const difficulty = () => clamp(dist / 7000, 0, 1);
 const score = () => points + Math.floor(dist / 40);
 
+/* ---------------- Spawning ---------------- */
+function addDiya(x, y, gold = false){ diyas.push({ x, y, gold, ph: rnd(0, 6) }); }
+
+function spawnChunk(y0){
+  const d = difficulty(), lo = bankL + 40, hi = bankR - 40, r = Math.random();
+  if (r < 0.32 - d * 0.1){                       // a winding line of diyas
+    const x0 = rnd(lo + 30, hi - 30), n = 4 + Math.floor(rnd(0, 3)), amp = rnd(20, 60);
+    for (let i = 0; i < n; i++) addDiya(clamp(x0 + Math.sin(i * 0.9) * amp, lo, hi), y0 - i * 46, i === n - 1 && Math.random() < 0.12);
+  } else if (r < 0.58){                          // bhanwar ringed with diyas: risk for reward
+    const R = rnd(32, 46) + d * 10, x = rnd(lo + R, hi - R);
+    pools.push({ x, y: y0 - R * 2, R, spin: Math.random() < 0.5 ? 1 : -1 });
+    const n = 7;
+    for (let i = 0; i < n; i++){ const a = i / n * Math.PI * 2; addDiya(clamp(x + Math.cos(a) * R * 1.75, lo, hi), y0 - R * 2 + Math.sin(a) * R * 1.75, i === 0 && Math.random() < 0.35); }
+  } else if (r < 0.82){                          // rock gate with diyas through the gap
+    const gap = rnd(120, 160) - d * 35, gx = rnd(lo + gap / 2, hi - gap / 2);
+    for (let x = lo - 10; x < gx - gap / 2 - 10; x += rnd(42, 60)) rocks.push({ x, y: y0 + rnd(-10, 10), r: rnd(16, 24), seed: Math.random() });
+    for (let x = hi + 10; x > gx + gap / 2 + 10; x -= rnd(42, 60)) rocks.push({ x, y: y0 + rnd(-10, 10), r: rnd(16, 24), seed: Math.random() });
+    for (let i = 0; i < 3; i++) addDiya(gx, y0 + 70 - i * 70);
+  } else {                                       // drifting log with diyas scattered behind it
+    const fromLeft = Math.random() < 0.5, len = rnd(80, 130);
+    logs.push({ x: fromLeft ? lo - 20 : hi + 20, y: y0, vx: (fromLeft ? 1 : -1) * rnd(40, 80 + d * 60), len, ang: rnd(-0.3, 0.3), spin: rnd(-0.4, 0.4) });
+    for (let i = 0; i < 2; i++) addDiya(rnd(lo, hi), y0 - 90 - i * 60);
+  }
+  if (Math.random() < d * 0.6) rocks.push({ x: rnd(lo, hi), y: y0 - rnd(120, 200), r: rnd(14, 20), seed: Math.random() });
+}
+
