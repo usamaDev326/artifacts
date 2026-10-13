@@ -76,3 +76,15 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 let W = 0, H = 0, DPR = 1, bankL = 0, bankR = 0;
 
+/* ---------------- State ---------------- */
+const BEST_KEY = 'lantern-drift-best-v2';
+let best = 0; try { best = Number(localStorage.getItem(BEST_KEY)) || 0; } catch (e) {}
+let state = 'ready', T = 0, overT = 0;
+let dist = 0, speed = 0, points = 0, diyaCount = 0, combo = 0, comboT = 0, flame = 100, inv = 0, shake = 0, nextChunk = 0;
+let boat = null, diyas = [], pools = [], rocks = [], logs = [], sparks = [], shouts = [], streaks = [], trail = [], deco = [];
+const pointer = { x: 0, y: 0, active: false, touch: false };
+const keys = {};
+
+const difficulty = () => clamp(dist / 7000, 0, 1);
+const score = () => points + Math.floor(dist / 40);
+
