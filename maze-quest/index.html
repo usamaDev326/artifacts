@@ -375,3 +375,65 @@ function camTarget(){
 }
 const toScreen = (tx, ty) => ({ x: (tx + 0.5) * S - cam.x + W / 2, y: (ty + 0.5) * S - cam.y + H / 2 });
 
+/* ---------------- Drawing ---------------- */
+function drawTiles(){
+  const x0 = Math.max(0, Math.floor((cam.x - W / 2) / S) - 1), x1 = Math.min(MW - 1, Math.ceil((cam.x + W / 2) / S) + 1);
+  const y0 = Math.max(0, Math.floor((cam.y - H / 2) / S) - 1), y1 = Math.min(MH - 1, Math.ceil((cam.y + H / 2) / S) + 1);
+  const ox = W / 2 - cam.x, oy = H / 2 - cam.y;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++){
+    if (grid[y * MW + x]) continue;
+    const sx = x * S + ox, sy = y * S + oy;
+    ctx.fillStyle = (x + y) % 2 ? '#1e1712' : '#1a140f'; ctx.fillRect(sx, sy, S + 0.5, S + 0.5);
+    ctx.fillStyle = 'rgba(255,230,200,.03)'; ctx.fillRect(sx + S * 0.2, sy + S * 0.3, 2, 2); ctx.fillRect(sx + S * 0.7, sy + S * 0.65, 2, 2);
+  }
+  return { x0, x1, y0, y1, ox, oy };
+}
+
+function drawWalls(v){
+  for (let y = v.y0; y <= v.y1; y++) for (let x = v.x0; x <= v.x1; x++){
+    if (!grid[y * MW + x]) continue;
+    const sx = x * S + v.ox, sy = y * S + v.oy, open = floorAt(x, y + 1);
+    ctx.fillStyle = '#6b3b2a'; ctx.fillRect(sx, sy - S * 0.22, S + 0.5, S + 0.5);           // top of the old brick wall
+    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let r = 1; r < 3; r++){ const ly = sy - S * 0.22 + r * S / 3; ctx.moveTo(sx, ly); ctx.lineTo(sx + S, ly); }
+    ctx.stroke();
+    if (open){                                                                                // front face facing the gali
+      ctx.fillStyle = '#3a2017'; ctx.fillRect(sx, sy + S * 0.78, S + 0.5, S * 0.22);
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(sx, sy + S, S + 0.5, S * 0.12);
+    }
+  }
+}
+
+function drawJalebi(x, y){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(T * 0.8);
+  ctx.strokeStyle = '#f39c12'; ctx.lineWidth = S * 0.07; ctx.lineCap = 'round'; ctx.beginPath();
+  for (let a = 0; a < Math.PI * 4; a += 0.25){ const r = S * 0.03 + a * S * 0.016; a ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+  ctx.stroke(); ctx.strokeStyle = 'rgba(255,240,180,.5)'; ctx.lineWidth = S * 0.02; ctx.stroke(); ctx.restore();
+}
+
+function drawKey(x, y){
+  ctx.save(); ctx.translate(x, y + Math.sin(T * 3) * S * 0.05); ctx.rotate(-0.4);
+  ctx.strokeStyle = '#ffd166'; ctx.fillStyle = '#ffd166'; ctx.lineWidth = S * 0.07;
+  ctx.beginPath(); ctx.arc(-S * 0.14, 0, S * 0.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillRect(-S * 0.05, -S * 0.03, S * 0.3, S * 0.06); ctx.fillRect(S * 0.15, 0, S * 0.05, S * 0.1); ctx.fillRect(S * 0.06, 0, S * 0.05, S * 0.08);
+  ctx.restore();
+}
+
+function drawBone(x, y, sc = 1){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(0.5); ctx.scale(sc, sc); ctx.fillStyle = '#f1e9da';
+  ctx.fillRect(-S * 0.15, -S * 0.04, S * 0.3, S * 0.08);
+  for (const [bx, by] of [[-0.16, -0.05], [-0.16, 0.05], [0.16, -0.05], [0.16, 0.05]]){ ctx.beginPath(); ctx.arc(bx * S, by * S, S * 0.06, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawDoor(x, y){
+  const w = S * 0.7, h = S * 0.85;
+  ctx.save(); ctx.translate(x, y + S * 0.1);
+  if (hasKey){ const g = ctx.createRadialGradient(0, -h * 0.3, 2, 0, -h * 0.3, S); g.addColorStop(0, 'rgba(255,210,120,.9)'); g.addColorStop(1, 'rgba(255,170,60,0)'); ctx.fillStyle = g; ctx.fillRect(-S, -S * 1.4, S * 2, S * 2); }
+  ctx.fillStyle = hasKey ? '#ffd98a' : '#5b3a1e';
+  ctx.beginPath(); ctx.moveTo(-w / 2, h / 2); ctx.lineTo(-w / 2, -h * 0.15); ctx.arc(0, -h * 0.15, w / 2, Math.PI, 0); ctx.lineTo(w / 2, h / 2); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = hasKey ? '#c98a2e' : '#2e1c0e'; ctx.lineWidth = 2; ctx.stroke();
+  if (!hasKey){ ctx.fillStyle = '#c9a227'; ctx.fillRect(-S * 0.06, 0, S * 0.12, S * 0.12); }
+  ctx.restore();
+}
+
