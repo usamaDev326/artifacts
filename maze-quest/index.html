@@ -437,3 +437,131 @@ function drawDoor(x, y){
   ctx.restore();
 }
 
+function drawPlayer(){
+  const p = pos(player), s = toScreen(p.x, p.y);
+  if (inv > 0 && Math.floor(T * 12) % 2) return;
+  const bob = player.t < 1 ? Math.sin(T * 20) * S * 0.03 : 0, d = player.dir || queued || DIR.d;
+  ctx.save(); ctx.translate(s.x, s.y + bob);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0, S * 0.22, S * 0.24, S * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2a9d8f'; ctx.beginPath(); ctx.ellipse(0, S * 0.05, S * 0.22, S * 0.2, 0, 0, Math.PI * 2); ctx.fill();      // kurta
+  ctx.fillStyle = '#e0ac69'; ctx.beginPath(); ctx.arc(0, -S * 0.14, S * 0.14, 0, Math.PI * 2); ctx.fill();                     // face
+  ctx.fillStyle = '#f5f0e6'; ctx.beginPath(); ctx.arc(0, -S * 0.17, S * 0.14, Math.PI, 0); ctx.fill();                          // topi
+  ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(d[0] * S * 0.24, S * 0.02 + d[1] * S * 0.18, S * 0.06, 0, Math.PI * 2); ctx.fill();  // torch
+  ctx.restore();
+}
+
+function drawDog(){
+  const p = pos(dog), s = toScreen(p.x, p.y), d = dog.dir || DIR.l, ang = Math.atan2(d[1], d[0]);
+  ctx.save(); ctx.translate(s.x, s.y);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0, S * 0.22, S * 0.3, S * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(ang);
+  ctx.strokeStyle = '#8a5226'; ctx.lineWidth = S * 0.06; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-S * 0.25, 0); ctx.lineTo(-S * 0.4, Math.sin(T * (dog.mode === 'chase' ? 25 : 10)) * S * 0.1); ctx.stroke();   // tail
+  ctx.fillStyle = '#a0632f'; ctx.beginPath(); ctx.ellipse(-S * 0.03, 0, S * 0.25, S * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(S * 0.22, 0, S * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#5e3415'; ctx.beginPath(); ctx.ellipse(S * 0.18, -S * 0.12, S * 0.06, S * 0.04, 0.5, 0, Math.PI * 2); ctx.ellipse(S * 0.18, S * 0.12, S * 0.06, S * 0.04, -0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1a0f08'; ctx.beginPath(); ctx.arc(S * 0.33, 0, S * 0.03, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  if (dog.eatT > 0){ drawBone(s.x + S * 0.25, s.y + S * 0.1, 0.7); ctx.fillStyle = '#fff3e4'; ctx.font = `500 ${Math.round(S * 0.3)}px "IBM Plex Mono", monospace`; ctx.textAlign = 'center'; ctx.fillText('nom', s.x, s.y - S * 0.45); }
+}
+
+function drawShout(s){
+  const sc = toScreen(s.x, s.y), p = s.t / 1.6, a = p < 0.12 ? p / 0.12 : 1 - Math.max(0, (p - 0.6) / 0.4);
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 14;
+  const size = s.small ? 20 : Math.min(W * 0.1, 52) * (1 + (1 - Math.min(1, p * 4)) * 0.4);
+  ctx.font = `${size}px "Rozha One", Georgia, serif`; ctx.fillStyle = s.small ? '#fff3e4' : '#ffd166';
+  const half = ctx.measureText(s.text).width / 2 + 10, x = clamp(sc.x, half, Math.max(half, W - half)), y = clamp(sc.y - S * 0.6 - p * 40, size + 70, H - 70);
+  ctx.fillText(s.text, x, y);
+  if (s.ur){ ctx.font = `700 ${size * 0.42}px "Noto Nastaliq Urdu", serif`; ctx.fillStyle = '#fff3e4'; ctx.fillText(s.ur, x, y + size * 0.75); }
+  ctx.restore();
+}
+
+function draw(){
+  ctx.fillStyle = '#070504'; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  if (shake > 0 && !reduceMotion) ctx.translate(rnd(-6, 6) * shake * 2, rnd(-5, 5) * shake * 2);
+  const v = drawTiles();
+  const ds = toScreen(door.x, door.y); drawDoor(ds.x, ds.y);
+  for (const it of items){ const s = toScreen(it.x, it.y); it.type === 'j' ? drawJalebi(s.x, s.y) : it.type === 'k' ? drawKey(s.x, s.y) : drawBone(s.x, s.y); }
+  drawDog(); drawPlayer();
+  drawWalls(v);
+
+  // torch: everything outside its circle stays dark
+  const pp = pos(player), ps = toScreen(pp.x, pp.y);
+  const tr = S * Math.max(2.6, 3.7 - (level - 1) * 0.15) * (1 + Math.sin(T * 13) * 0.015 + Math.sin(T * 5.1) * 0.02);
+  const g = ctx.createRadialGradient(ps.x, ps.y, tr * 0.2, ps.x, ps.y, tr);
+  g.addColorStop(0, 'rgba(6,4,3,0)'); g.addColorStop(0.55, 'rgba(6,4,3,.35)'); g.addColorStop(1, 'rgba(6,4,3,.97)');
+  ctx.fillStyle = g; ctx.fillRect(-40, -40, W + 80, H + 80);
+  ctx.globalCompositeOperation = 'lighter';
+  const wg = ctx.createRadialGradient(ps.x, ps.y, 2, ps.x, ps.y, tr * 0.8); wg.addColorStop(0, 'rgba(255,190,110,.12)'); wg.addColorStop(1, 'rgba(255,160,80,0)');
+  ctx.fillStyle = wg; ctx.fillRect(ps.x - tr, ps.y - tr, tr * 2, tr * 2);
+  if (hasKey){ const dg = ctx.createRadialGradient(ds.x, ds.y, 2, ds.x, ds.y, S * 1.6); dg.addColorStop(0, 'rgba(255,200,100,.7)'); dg.addColorStop(1, 'rgba(255,160,60,0)'); ctx.fillStyle = dg; ctx.fillRect(ds.x - S * 2, ds.y - S * 2, S * 4, S * 4); }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Moti's eyes shine in the dark when he is close
+  const dp = pos(dog), dsc = toScreen(dp.x, dp.y), dd = Math.hypot(dp.x - pp.x, dp.y - pp.y);
+  if (dd * S > tr * 0.6 && dd < 11){
+    const a = clamp(1 - dd / 11, 0.15, 1) * (dog.mode === 'chase' ? 1 : 0.6), c = dog.mode === 'chase' ? '255,90,60' : '255,210,90';
+    ctx.fillStyle = `rgba(${c},${a})`; ctx.shadowColor = `rgba(${c},1)`; ctx.shadowBlur = 10;
+    const d = dog.dir || DIR.l, ex = dsc.x + d[0] * S * 0.25, ey = dsc.y + d[1] * S * 0.25, nx = -d[1] * S * 0.07, ny = d[0] * S * 0.07;
+    ctx.beginPath(); ctx.arc(ex + nx, ey + ny, S * 0.04, 0, Math.PI * 2); ctx.arc(ex - nx, ey - ny, S * 0.04, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  }
+
+  // faint compass toward the key, then the door
+  const kItem = items.find(i => i.type === 'k'), tgt = hasKey ? door : kItem;
+  if (tgt && state !== 'over'){
+    const ts = toScreen(tgt.x, tgt.y), ang = Math.atan2(ts.y - ps.y, ts.x - ps.x);
+    if (Math.hypot(ts.x - ps.x, ts.y - ps.y) > tr * 0.7){
+      ctx.save(); ctx.translate(ps.x + Math.cos(ang) * S * 0.95, ps.y + Math.sin(ang) * S * 0.95); ctx.rotate(ang);
+      ctx.globalAlpha = 0.45 + Math.sin(T * 4) * 0.2; ctx.fillStyle = hasKey ? '#ffd98a' : '#ffd166';
+      ctx.beginPath(); ctx.moveTo(S * 0.16, 0); ctx.lineTo(-S * 0.08, -S * 0.1); ctx.lineTo(-S * 0.08, S * 0.1); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+  }
+
+  for (const s of sparks){ const sc = toScreen(s.x, s.y); ctx.globalAlpha = Math.min(1, s.life * 2); ctx.fillStyle = s.c; ctx.fillRect(sc.x, sc.y, 3, 3); }
+  ctx.globalAlpha = 1;
+  if (state === 'play' && combo > 1){ ctx.fillStyle = '#ffd166'; ctx.font = '600 13px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('×' + combo, ps.x, ps.y + S * 0.75); }
+  for (const s of shouts) drawShout(s);
+  ctx.restore();
+
+  if (state === 'ready'){
+    ctx.globalAlpha = 0.6 + Math.sin(T * 3) * 0.3; ctx.fillStyle = '#ffd166'; ctx.font = '500 13px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('swipe / arrow keys se chalo', ps.x, ps.y + S * 1.3); ctx.fillText('chabi dhoondo · Moti se bacho', ps.x, ps.y + S * 1.3 + 18); ctx.globalAlpha = 1;
+  }
+  if (state === 'over') drawOver();
+}
+
+function drawOver(){
+  const a = Math.min(1, overT * 2.5);
+  ctx.fillStyle = `rgba(6,4,3,${0.6 * a})`; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center';
+  const cx = W / 2, cy = H / 2, big = Math.min(W * 0.12, 64);
+  ctx.font = `${big}px "Rozha One", Georgia, serif`; ctx.fillStyle = '#ffd166'; ctx.fillText('Moti ne pakar liya', cx, cy - 30);
+  ctx.font = `700 ${big * 0.42}px "Noto Nastaliq Urdu", serif`; ctx.fillStyle = '#fff3e4'; ctx.fillText('موتی نے پکڑ لیا', cx, cy + 12);
+  ctx.font = '500 14px "IBM Plex Mono", monospace'; ctx.fillStyle = 'rgba(255,243,228,.85)';
+  ctx.fillText(`score ${score}  ·  gali ${level}`, cx, cy + 62);
+  ctx.fillText(score >= best && best > 0 ? 'naya best!' : `best ${best}`, cx, cy + 86);
+  if (overT > 0.7){ ctx.fillStyle = `rgba(255,209,102,${0.6 + Math.sin(T * 4) * 0.3})`; ctx.fillText('tap / space to play again', cx, cy + 124); }
+  ctx.restore();
+}
+
+/* ---------------- Setup ---------------- */
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  S = clamp(Math.min(W, H) / 10, 30, 54);
+  if (player){ const c = camTarget(); cam.x = c.x; cam.y = c.y; }
+}
+addEventListener('resize', resize);
+resize();
+newGame();
+window.__maze = { get state(){ return state; }, get player(){ return player; }, get dog(){ return dog; }, get door(){ return door; }, get items(){ return items; }, get grid(){ return grid; }, get MW(){ return MW; }, get level(){ return level; }, get lives(){ return lives; }, get score(){ return score; }, setDir: d => setDir(DIR[d]), bfs };
+let last = performance.now();
+function frame(now){ const dt = Math.min(1 / 30, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(frame); }
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>
