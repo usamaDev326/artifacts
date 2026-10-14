@@ -295,3 +295,35 @@ function setDir(d){
   }
 }
 
+/* ---------------- Input ---------------- */
+const KEYS = { arrowup: 'u', w: 'u', arrowdown: 'd', s: 'd', arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r' };
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (KEYS[k]){ e.preventDefault(); sound.init(); if (state !== 'over') setDir(DIR[KEYS[k]]); }
+  if (k === ' ' || k === 'enter'){ e.preventDefault(); sound.init(); if (state === 'over' && overT > 0.7) newGame(); else start(); }
+});
+const swipe = { on: false, x: 0, y: 0, moved: false };
+cv.addEventListener('pointerdown', e => {
+  sound.init(); cv.setPointerCapture(e.pointerId);
+  if (state === 'over'){ if (overT > 0.7) newGame(); return; }
+  Object.assign(swipe, { on: true, x: e.clientX, y: e.clientY, moved: false });
+});
+cv.addEventListener('pointermove', e => {
+  if (!swipe.on) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  if (Math.hypot(dx, dy) > 22){
+    setDir(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? DIR.r : DIR.l) : (dy > 0 ? DIR.d : DIR.u));
+    swipe.x = e.clientX; swipe.y = e.clientY; swipe.moved = true;
+  }
+});
+cv.addEventListener('pointerup', e => {
+  if (swipe.on && !swipe.moved && state !== 'over'){
+    // a plain tap/click walks toward the tapped side of the player
+    const p = pos(player), s = toScreen(p.x, p.y), dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (Math.hypot(dx, dy) > S * 0.4) setDir(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? DIR.r : DIR.l) : (dy > 0 ? DIR.d : DIR.u));
+    else start();
+  }
+  swipe.on = false;
+});
+cv.addEventListener('pointercancel', () => { swipe.on = false; });
+
