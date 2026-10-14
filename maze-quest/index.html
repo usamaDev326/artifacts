@@ -162,3 +162,43 @@ function buildLevel(lv){
   shouts.push({ x: 1, y: 1, t: 0, text: 'Gali ' + lv, ur: 'گلی ' + lv, small: lv === 1 });
 }
 
+/* ---------------- Sound (Web Audio, starts on first gesture) ---------------- */
+const sound = (() => {
+  let ac = null, master = null, muted = false;
+  function init(){
+    if (ac){ if (ac.state === 'suspended') ac.resume(); return; }
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    master = ac.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(ac.destination);
+  }
+  function tone(f, t, dur, type, vol, f2){
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function noise(t, dur, freq, vol){
+    const b = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b;
+    bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 1.2;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(bp).connect(g).connect(master); s.start(t);
+  }
+  const ok = () => ac && !muted;
+  return {
+    init,
+    toggle(){ muted = !muted; if (master) master.gain.value = muted ? 0 : 0.9; return !muted; },
+    step(){ if (ok()) noise(ac.currentTime, 0.05, 300, 0.05); },
+    chime(n){ if (!ok()) return; const sc = [0, 2, 4, 7, 9], s = Math.min(n - 1, 14), semi = sc[s % 5] + 12 * Math.floor(s / 5); tone(587 * Math.pow(2, semi / 12), ac.currentTime, 0.3, 'triangle', 0.1); },
+    key(){ if (!ok()) return; const t = ac.currentTime; [1318, 1568, 2093].forEach((f, i) => tone(f, t + i * 0.07, 0.25, 'sine', 0.08)); },
+    door(){ if (!ok()) return; const t = ac.currentTime; [523, 659, 784, 1046].forEach((f, i) => tone(f, t + i * 0.1, 0.4, 'square', 0.05)); },
+    bark(){ if (!ok()) return; const t = ac.currentTime; [0, 0.18].forEach(o => { tone(260, t + o, 0.12, 'sawtooth', 0.12, 140); noise(t + o, 0.1, 700, 0.25); }); },
+    caught(){ if (!ok()) return; const t = ac.currentTime; tone(180, t, 0.4, 'triangle', 0.25, 50); noise(t, 0.3, 400, 0.3); },
+    crunch(){ if (!ok()) return; const t = ac.currentTime; for (let i = 0; i < 4; i++) noise(t + i * 0.09, 0.06, 1500, 0.2); },
+    over(){ if (!ok()) return; const t = ac.currentTime; [392, 330, 262, 196].forEach((f, i) => tone(f, t + i * 0.16, 0.5, 'triangle', 0.08)); },
+  };
+})();
+$('soundBtn').addEventListener('click', e => {
+  sound.init(); const on = sound.toggle(); e.currentTarget.textContent = 'sound: ' + (on ? 'on' : 'off'); e.currentTarget.setAttribute('aria-pressed', on);
+});
+
