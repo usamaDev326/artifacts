@@ -202,3 +202,49 @@ $('soundBtn').addEventListener('click', e => {
   sound.init(); const on = sound.toggle(); e.currentTarget.textContent = 'sound: ' + (on ? 'on' : 'off'); e.currentTarget.setAttribute('aria-pressed', on);
 });
 
+/* ---------------- Game flow ---------------- */
+const SHOUTS = [['Shabash!', 'شاباش'], ['Wah wah!', 'واہ واہ'], ['Kamaal!', 'کمال'], ['Chha gaye!', 'چھا گئے'], ['Raja beta!', 'راجہ بیٹا']];
+
+function newGame(){ level = 1; score = 0; lives = 3; bones = 0; inv = 0; shouts = []; sparks = []; buildLevel(1); state = 'ready'; }
+function start(){ if (state === 'ready') state = 'play'; }
+
+function burst(x, y, c, n){ for (let i = 0; i < (reduceMotion ? 4 : n); i++) sparks.push({ x, y, vx: rnd(-3, 3), vy: rnd(-4, 1), life: rnd(.3, .7), c }); }
+
+function onPlayerArrive(m){
+  sound.step();
+  pDist = bfs(m.cx, m.cy);
+  const i = items.findIndex(it => it.x === m.cx && it.y === m.cy);
+  if (i >= 0){
+    const it = items[i]; items.splice(i, 1);
+    if (it.type === 'j'){
+      combo = comboT > 0 ? combo + 1 : 1; comboT = 1.1; score += 10 * combo;
+      burst(it.x, it.y, '#ffb347', 10); sound.chime(combo);
+      if (combo % 5 === 0){ const [en, ur] = SHOUTS[Math.min(SHOUTS.length - 1, combo / 5 - 1)]; shouts.push({ x: it.x, y: it.y, t: 0, text: en, ur }); }
+    } else if (it.type === 'k'){
+      hasKey = true; score += 50; burst(it.x, it.y, '#ffd166', 24); sound.key();
+      shouts.push({ x: it.x, y: it.y, t: 0, text: 'Chabi mil gayi!', ur: 'چابی مل گئی' });
+    } else {
+      bones++; burst(it.x, it.y, '#f1e9da', 12); sound.chime(3);
+      shouts.push({ x: it.x, y: it.y, t: 0, text: 'Haddi! Moti ke liye', ur: '', small: true });
+    }
+  }
+  if (m.cx === door.x && m.cy === door.y){
+    if (hasKey){ state = 'clear'; clearT = 0; score += 100 * level; sound.door(); const [en, ur] = pick(SHOUTS); shouts.push({ x: door.x, y: door.y, t: 0, text: en, ur }); burst(door.x, door.y, '#ffd166', 30); }
+    else if (lockT <= 0){ lockT = 2; shouts.push({ x: door.x, y: door.y, t: 0, text: 'Pehle chabi dhoondo', ur: '', small: true }); }
+  }
+}
+
+function caught(){
+  lives--; combo = 0; shake = 0.4; sound.caught();
+  const p = pos(player); burst(p.x, p.y, '#ff6b6b', 20);
+  if (lives <= 0){
+    state = 'over'; overT = 0;
+    if (score > best){ best = score; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+    sound.over(); return;
+  }
+  shouts.push({ x: p.x, y: p.y, t: 0, text: 'Pakre gaye!', ur: 'پکڑے گئے' });
+  player = mover(1, 1, 6.2); queued = null; pDist = bfs(1, 1); inv = 2; grace = 1.2;
+  const ds = farTile(0.6, 0.95, (x, y) => x === door.x && y === door.y);
+  Object.assign(dog, mover(ds.x, ds.y, 3.2), { mode: 'wander', eatT: 0 });
+}
+
