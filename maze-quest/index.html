@@ -327,3 +327,51 @@ cv.addEventListener('pointerup', e => {
 });
 cv.addEventListener('pointercancel', () => { swipe.on = false; });
 
+/* ---------------- Update ---------------- */
+function update(dt){
+  T += dt;
+  shake = Math.max(0, shake - dt);
+  lockT -= dt;
+  if (state === 'over'){ overT += dt; }
+  if (state === 'clear'){ clearT += dt; if (clearT > 1.8){ level++; buildLevel(level); state = 'play'; } }
+
+  if (state === 'play'){
+    inv = Math.max(0, inv - dt); grace -= dt;
+    comboT -= dt; if (comboT <= 0) combo = 0;
+    stepMover(player, dt, choosePlayer, onPlayerArrive);
+    if (dog.eatT > 0){ dog.eatT -= dt; if (dog.eatT <= 0) dog.mode = 'wander'; }
+    dog.speed = dog.mode === 'chase' ? Math.min(6.2, 4.3 + level * 0.3) : 3.2;
+    if (grace <= 0) stepMover(dog, dt, chooseDog, null);
+    const pp = pos(player), dp = pos(dog);
+    if (state === 'play' && inv <= 0 && dog.eatT <= 0 && Math.hypot(pp.x - dp.x, pp.y - dp.y) < 0.6){
+      if (bones > 0){
+        bones--; dog.eatT = 6; dog.mode = 'wander'; inv = 0.8; sound.crunch();
+        shouts.push({ x: dp.x, y: dp.y, t: 0, text: 'Le Moti, haddi!', ur: 'لے موتی' });
+      } else caught();
+    }
+  }
+
+  const c = camTarget(), k = Math.min(1, dt * 9);
+  cam.x += (c.x - cam.x) * k; cam.y += (c.y - cam.y) * k;
+  for (const s of sparks){ s.life -= dt; s.vy += 9 * dt; s.x += s.vx * dt; s.y += s.vy * dt; }
+  sparks = sparks.filter(s => s.life > 0);
+  for (const s of shouts) s.t += dt;
+  shouts = shouts.filter(s => s.t < 1.6);
+  hud();
+}
+
+function hud(){
+  $('sLevel').textContent = level; $('sScore').textContent = score; $('sBest').textContent = best;
+  $('sLives').textContent = '♥'.repeat(Math.max(0, lives)) || '–'; $('sBones').textContent = bones;
+}
+
+/* ---------------- Camera ---------------- */
+function camTarget(){
+  const p = player ? pos(player) : { x: 1, y: 1 }, mw = MW * S, mh = MH * S;
+  let x = (p.x + 0.5) * S, y = (p.y + 0.5) * S;
+  x = mw <= W ? mw / 2 : clamp(x, W / 2, mw - W / 2);
+  y = mh <= H ? mh / 2 : clamp(y, H / 2 - 60, mh - H / 2 + 60);
+  return { x, y };
+}
+const toScreen = (tx, ty) => ({ x: (tx + 0.5) * S - cam.x + W / 2, y: (ty + 0.5) * S - cam.y + H / 2 });
+
