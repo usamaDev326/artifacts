@@ -8,7 +8,7 @@ Jab agla game theek karna ho to is file ka reference do.
 | Game | Status |
 |---|---|
 | Lantern Drift | ✅ Dobara likh diya (Ravi par diye, lau, combo, bhanwar) |
-| Maze Quest | ⏳ Baqi |
+| Maze Quest | ✅ Dobara likh diya (andheri galiyan, torch, Moti kutta, chabi + darwaza, levels) |
 | Moonlight Moth | ⏳ Baqi |
 | Paper Skies | ⏳ Baqi |
 
@@ -51,7 +51,7 @@ Copilot wale charon games ek hi template the: start panel, timer, lives, "X coll
 
 ---
 
-## Maze Quest ⏳
+## Maze Quest ✅ (ho gaya)
 
 **Bugs** ([maze-quest/index.html](maze-quest/index.html)):
 - **Har baar wahi maze.** `carve()` (line ~183-194) directions shuffle nahi karta. Fix: `dirs` ko Fisher-Yates se shuffle karo.
