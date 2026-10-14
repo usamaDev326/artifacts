@@ -248,3 +248,50 @@ function caught(){
   Object.assign(dog, mover(ds.x, ds.y, 3.2), { mode: 'wander', eatT: 0 });
 }
 
+/* ---------------- Movement ---------------- */
+function stepMover(m, dt, choose, arrive){
+  let rem = m.speed * dt;
+  for (let guard = 0; rem > 1e-6 && guard < 8; guard++){
+    if (m.t < 1){
+      const need = 1 - m.t;
+      if (rem < need){ m.t += rem; rem = 0; } else { m.t = 1; rem -= need; if (arrive) arrive(m); }
+    } else {
+      const d = choose(m); if (!d) break;
+      m.px = m.cx; m.py = m.cy; m.cx += d[0]; m.cy += d[1]; m.t = 0; m.dir = d;
+    }
+  }
+}
+
+// Pac-Man style: keep walking, turn at the first gap that matches the queued direction.
+function choosePlayer(m){
+  if (queued && floorAt(m.cx + queued[0], m.cy + queued[1])) return queued;
+  if (m.dir && floorAt(m.cx + m.dir[0], m.cy + m.dir[1])) return m.dir;
+  m.dir = null; return null;
+}
+
+// Moti wanders until he hears you (path distance), then follows the shortest path.
+function chooseDog(m){
+  if (dog.eatT > 0) return null;
+  const di = pDist[m.cy * MW + m.cx], hear = 6 + level;
+  if (dog.mode === 'wander' && di >= 0 && di <= hear){
+    dog.mode = 'chase'; sound.bark(); const p = pos(dog);
+    shouts.push({ x: p.x, y: p.y, t: 0, text: 'Bhaoo!', ur: 'بھاؤ', small: true });
+  } else if (dog.mode === 'chase' && (di < 0 || di > hear * 1.6)) dog.mode = 'wander';
+  const opts = DLIST.filter(([dx, dy]) => floorAt(m.cx + dx, m.cy + dy));
+  if (dog.mode === 'chase'){
+    const near = opts.filter(([dx, dy]) => pDist[(m.cy + dy) * MW + m.cx + dx] === di - 1);
+    if (near.length) return pick(near);
+  }
+  const fwd = opts.filter(d => !m.dir || !(d[0] === -m.dir[0] && d[1] === -m.dir[1]));
+  return pick(fwd.length ? fwd : opts);
+}
+
+function setDir(d){
+  queued = d; start();
+  // reversing mid-step should feel instant
+  if (player.t < 1 && player.dir && d[0] === -player.dir[0] && d[1] === -player.dir[1]){
+    [player.px, player.cx] = [player.cx, player.px]; [player.py, player.cy] = [player.cy, player.py];
+    player.t = 1 - player.t; player.dir = d;
+  }
+}
+
