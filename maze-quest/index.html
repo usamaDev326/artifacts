@@ -87,3 +87,78 @@ const DIR = { u: [0, -1], d: [0, 1], l: [-1, 0], r: [1, 0] };
 const DLIST = [DIR.u, DIR.d, DIR.l, DIR.r];
 const floorAt = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH && grid[y * MW + x] === 0;
 
+/* ---------------- Maze ---------------- */
+function shuffle(a){ for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+// Tile grid (2c+1 square), 1 = wall. Shuffled DFS, so every gali is new.
+function genMaze(c){
+  MW = MH = 2 * c + 1; grid = new Uint8Array(MW * MH).fill(1);
+  const seen = new Uint8Array(c * c), st = [[0, 0]]; seen[0] = 1; grid[MW + 1] = 0;
+  while (st.length){
+    const [x, y] = st[st.length - 1];
+    const n = shuffle(DLIST.slice()).filter(([dx, dy]) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < c && ny < c && !seen[ny * c + nx]; });
+    if (!n.length){ st.pop(); continue; }
+    const [dx, dy] = n[0], nx = x + dx, ny = y + dy; seen[ny * c + nx] = 1;
+    grid[(2 * y + 1 + dy) * MW + 2 * x + 1 + dx] = 0; grid[(2 * ny + 1) * MW + 2 * nx + 1] = 0; st.push([nx, ny]);
+  }
+  // knock out a few walls so there are loops to run around Moti
+  for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++){
+    if (grid[y * MW + x] !== 1 || (x + y) % 2 === 0) continue;
+    if (((floorAt(x - 1, y) && floorAt(x + 1, y)) || (floorAt(x, y - 1) && floorAt(x, y + 1))) && Math.random() < 0.1) grid[y * MW + x] = 0;
+  }
+}
+
+function bfs(sx, sy){
+  const d = new Int16Array(MW * MH).fill(-1), q = new Int32Array(MW * MH); let h = 0, t = 0;
+  d[sy * MW + sx] = 0; q[t++] = sy * MW + sx;
+  while (h < t){
+    const i = q[h++], x = i % MW, y = (i / MW) | 0;
+    for (const [dx, dy] of DLIST){ const nx = x + dx, ny = y + dy, j = ny * MW + nx; if (floorAt(nx, ny) && d[j] < 0){ d[j] = d[i] + 1; q[t++] = j; } }
+  }
+  return d;
+}
+
+const mover = (x, y, speed) => ({ cx: x, cy: y, px: x, py: y, t: 1, dir: null, speed });
+const pos = m => ({ x: m.px + (m.cx - m.px) * m.t, y: m.py + (m.cy - m.py) * m.t });
+
+function farTile(minFrac, maxFrac, avoid){
+  let max = 0; for (const v of startDist) max = Math.max(max, v);
+  const c = [];
+  for (let i = 0; i < startDist.length; i++){
+    const v = startDist[i];
+    if (v >= max * minFrac && v <= max * maxFrac && !(avoid && avoid(i % MW, (i / MW) | 0))) c.push(i);
+  }
+  const i = c.length ? pick(c) : startDist.indexOf(max);
+  return { x: i % MW, y: (i / MW) | 0 };
+}
+
+function buildLevel(lv){
+  genMaze(Math.min(6 + lv * 2, 16));
+  startDist = bfs(1, 1);
+  let max = 0, di = 0; startDist.forEach((v, i) => { if (v > max){ max = v; di = i; } });
+  door = { x: di % MW, y: (di / MW) | 0 };
+  const doorDist = bfs(door.x, door.y);
+  items = [];
+  const taken = (x, y) => (x === 1 && y === 1) || (x === door.x && y === door.y) || items.some(it => it.x === x && it.y === y);
+  const k = farTile(0.4, 0.75, (x, y) => doorDist[y * MW + x] < max * 0.35 || taken(x, y));
+  items.push({ x: k.x, y: k.y, type: 'k' });
+  for (let i = 0; i < 1 + (lv >= 3 ? 1 : 0); i++){ const b = farTile(0.25, 0.7, taken); items.push({ x: b.x, y: b.y, type: 'b' }); }
+  // jalebis in little runs along the gali, so combos are possible
+  let floors = 0; for (const v of grid) if (!v) floors++;
+  const want = Math.round(floors / 8);
+  for (let guard = 0; items.filter(i => i.type === 'j').length < want && guard < 400; guard++){
+    let { x, y } = farTile(0.08, 1, taken);
+    for (let s = 0, n = 3 + Math.floor(rnd(0, 4)); s < n; s++){
+      if (!taken(x, y)) items.push({ x, y, type: 'j' });
+      const opts = DLIST.filter(([dx, dy]) => floorAt(x + dx, y + dy)); const [dx, dy] = pick(opts); x += dx; y += dy;
+    }
+  }
+  player = mover(1, 1, 6.2); queued = null;
+  const ds = farTile(0.6, 0.95, (x, y) => x === door.x && y === door.y);
+  dog = { ...mover(ds.x, ds.y, 3.2), mode: 'wander', eatT: 0 };
+  hasKey = false; grace = 1.6; combo = 0; comboT = 0; lockT = 0;
+  pDist = bfs(1, 1);
+  const p = camTarget(); cam.x = p.x; cam.y = p.y;
+  shouts.push({ x: 1, y: 1, t: 0, text: 'Gali ' + lv, ur: 'گلی ' + lv, small: lv === 1 });
+}
+
