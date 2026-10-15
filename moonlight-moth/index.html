@@ -196,3 +196,68 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { const k = KEYS[e.key.toLowerCase()]; if (k) keys[k] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
+/* ---------------- Update ---------------- */
+function steerMoth(m, tx, ty, stiff, damp, dt){
+  m.vx += ((tx - m.x) * stiff - m.vx * damp + wind * 650) * dt;
+  m.vy += ((ty - m.y) * stiff - m.vy * damp) * dt;
+}
+
+function update(dt){
+  T += dt;
+  const d = difficulty();
+  if (state === 'play') playT += dt;
+  if (state === 'over') overT += dt;
+
+  // hawa ke jhonke: warn first, then blow
+  if (state === 'play'){
+    gust.t -= dt;
+    if (gust.phase === 'idle' && gust.t <= 0){ gust.phase = 'warn'; gust.t = 1.2; gust.dir = Math.random() < 0.5 ? -1 : 1; gust.str = rnd(0.55, 0.85) + d * 0.3; sound.warn(); }
+    else if (gust.phase === 'warn' && gust.t <= 0){ gust.phase = 'blow'; gust.t = rnd(1.4, 2.4); windTarget = gust.dir * gust.str; sound.gust(); }
+    else if (gust.phase === 'blow' && gust.t <= 0){ gust.phase = 'idle'; gust.t = rnd(5, 9) - d * 3; windTarget = 0; }
+    // bhabak: the flame sputters, then flares wide
+    flare.t -= dt;
+    if (flare.phase === 'idle' && flare.t <= 0){ flare.phase = 'warn'; flare.t = 1; }
+    else if (flare.phase === 'warn' && flare.t <= 0){ flare.phase = 'flare'; flare.t = 1.2; sound.flare(); }
+    else if (flare.phase === 'flare' && flare.t <= 0){ flare.phase = 'idle'; flare.t = rnd(7, 12) - d * 4; }
+  }
+  const breeze = Math.sin(T * 0.7) * 0.06 + Math.sin(T * 2.3) * 0.03;
+  wind += (windTarget + breeze - wind) * Math.min(1, dt * 3);
+  const coreTarget = core * (flare.phase === 'flare' ? 1.75 : flare.phase === 'warn' ? 0.8 : 1);
+  curCore += (coreTarget - curCore) * Math.min(1, dt * (flare.phase === 'flare' ? 14 : 5));
+  const hc = heatCenter();
+
+  // the player's moth
+  if (state !== 'over'){
+    if (state === 'ready'){ steerMoth(moth, flame.x + Math.cos(T * 0.8) * core * 4, flame.y - core + Math.sin(T * 1.3) * core * 2, 4, 3, dt); }
+    else if (pointer.active){ steerMoth(moth, pointer.x, pointer.y - (pointer.touch ? 70 : 0), 9, 4.2, dt); }
+    else {
+      const kx = (keys.r ? 1 : 0) - (keys.l ? 1 : 0), ky = (keys.d ? 1 : 0) - (keys.u ? 1 : 0);
+      moth.vx += (kx * 1300 + wind * 650) * dt; moth.vy += ky * 1300 * dt;
+      const k = Math.pow(0.12, dt); moth.vx *= k; moth.vy *= k;
+    }
+    moth.x += moth.vx * dt; moth.y += moth.vy * dt;
+    moth.x = clamp(moth.x, 12, W - 12); moth.y = clamp(moth.y, 12, floorY - 10);
+    moth.flap += dt * (16 + Math.hypot(moth.vx, moth.vy) * 0.02);
+    moth.ang += (clamp(moth.vx / 500, -0.5, 0.5) - moth.ang) * Math.min(1, dt * 8);
+  }
+
+  // heat, multiplier and score
+  const dm = Math.hypot(moth.x - hc.x, moth.y - hc.y);
+  mult = dm < curCore ? 0 : dm < core * 1.8 ? 5 : dm < core * 2.8 ? 3 : dm < core * 4.2 ? 2 : dm < core * 6.5 ? 1 : 0;
+  burning = state === 'play' && dm < curCore ? 1 - dm / curCore : 0;
+  if (state === 'play'){
+    if (burning > 0){
+      par -= (45 + 70 * burning) * dt;
+      if (Math.random() < dt * 30) smoke.push({ x: moth.x + rnd(-6, 6), y: moth.y, vx: rnd(-15, 15), vy: rnd(-60, -30), r: rnd(2, 5), life: rnd(0.5, 1) });
+    } else par = Math.min(100, par + 4 * dt);
+    if (par < 30) lowPar = true;
+    if (lowPar && par > 50 && burning === 0){ lowPar = false; shouts.push({ x: moth.x, y: moth.y, t: 0, text: 'Bal bal bache!', ur: 'بال بال بچے', small: true }); }
+    score += mult * 10 * dt;
+    if (score >= nextMilestone){
+      const [en, ur] = SHOUTS[Math.min(SHOUTS.length - 1, milestoneIdx++)];
+      shouts.push({ x: moth.x, y: moth.y, t: 0, text: en, ur }); sound.chime(); nextMilestone += 250 + milestoneIdx * 100;
+    }
+    if (par <= 0){ par = 0; gameOver(); }
+  }
+  sound.heat(clamp(1 - dm / (core * 6), 0, 1), burning > 0);
+
