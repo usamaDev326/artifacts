@@ -92,3 +92,51 @@ const keys = {};
 const difficulty = () => clamp(playT / 120, 0, 1);
 const heatCenter = () => ({ x: flame.x + wind * core * 1.4, y: flame.y - core * 0.45 });
 
+/* ---------------- Sound (Web Audio, starts on first gesture) ---------------- */
+const sound = (() => {
+  let ac = null, master = null, muted = false, crackle = null, sizzle = null;
+  function noiseSrc(freq, type, q){
+    const b = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() < 0.02 ? (Math.random() * 2 - 1) : (Math.random() * 2 - 1) * 0.25;
+    const s = ac.createBufferSource(); s.buffer = b; s.loop = true;
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ac.createGain(); g.gain.value = 0; s.connect(f).connect(g).connect(master); s.start(); return g;
+  }
+  function init(){
+    if (ac){ if (ac.state === 'suspended') ac.resume(); return; }
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    master = ac.createGain(); master.gain.value = muted ? 0 : 0.9; master.connect(ac.destination);
+    crackle = noiseSrc(1800, 'bandpass', 0.7); sizzle = noiseSrc(5200, 'highpass', 0.5);
+  }
+  function tone(f, t, dur, type, vol, f2){
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f, t);
+    if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function whoosh(dur, vol){
+    const t = ac.currentTime, b = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = b;
+    f.type = 'bandpass'; f.Q.value = 1.5; f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(1400, t + dur * 0.5); f.frequency.exponentialRampToValueAtTime(250, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(master); s.start(t);
+  }
+  const ok = () => ac && !muted;
+  return {
+    init,
+    toggle(){ muted = !muted; if (master) master.gain.value = muted ? 0 : 0.9; return !muted; },
+    heat(near, burn){ if (!ac) return; crackle.gain.setTargetAtTime(0.04 + near * 0.25, ac.currentTime, 0.1); sizzle.gain.setTargetAtTime(burn ? 0.18 : 0, ac.currentTime, 0.05); },
+    gust(){ if (ok()) whoosh(1.8, 0.35); },
+    warn(){ if (ok()) whoosh(0.9, 0.08); },
+    flare(){ if (!ok()) return; tone(90, ac.currentTime, 0.6, 'sawtooth', 0.12, 45); whoosh(0.7, 0.25); },
+    bump(){ if (ok()) tone(420, ac.currentTime, 0.08, 'triangle', 0.08, 300); },
+    pop(){ if (!ok()) return; const t = ac.currentTime; tone(900, t, 0.25, 'square', 0.06, 120); whoosh(0.4, 0.2); },
+    chime(){ if (!ok()) return; const t = ac.currentTime; [784, 988, 1175].forEach((f, i) => tone(f, t + i * 0.08, 0.4, 'sine', 0.08)); },
+    over(){ if (!ok()) return; const t = ac.currentTime; [392, 330, 262, 196].forEach((f, i) => tone(f, t + i * 0.16, 0.5, 'triangle', 0.08)); },
+  };
+})();
+$('soundBtn').addEventListener('click', e => {
+  sound.init(); const on = sound.toggle(); e.currentTarget.textContent = 'sound: ' + (on ? 'on' : 'off'); e.currentTarget.setAttribute('aria-pressed', on);
+});
+
