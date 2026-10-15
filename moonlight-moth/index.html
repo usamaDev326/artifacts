@@ -385,3 +385,87 @@ function drawHeatRing(hc){
   ctx.restore();
 }
 
+function drawShout(s){
+  const p = s.t / 1.6, a = p < 0.12 ? p / 0.12 : 1 - Math.max(0, (p - 0.6) / 0.4);
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 14;
+  const size = s.small ? 20 : Math.min(W * 0.1, 52) * (1 + (1 - Math.min(1, p * 4)) * 0.4);
+  ctx.font = `${size}px "Rozha One", Georgia, serif`; ctx.fillStyle = s.small ? '#fff3e4' : '#ffd166';
+  const half = ctx.measureText(s.text).width / 2 + 10, x = clamp(s.x, half, Math.max(half, W - half)), y = clamp(s.y - 40 - p * 40, size + 70, H - 70);
+  ctx.fillText(s.text, x, y);
+  if (s.ur){ ctx.font = `700 ${size * 0.42}px "Noto Nastaliq Urdu", serif`; ctx.fillStyle = '#fff3e4'; ctx.fillText(s.ur, x, y + size * 0.75); }
+  ctx.restore();
+}
+
+function draw(){
+  const hc = heatCenter();
+  drawRoom();
+  drawShadows();
+  for (const p of dust){ ctx.fillStyle = `rgba(230,210,180,${Math.min(0.35, p.life * 0.2)})`; ctx.fillRect(p.x, p.y, 10, 1.2); }
+  drawShamadan();
+  drawFlame();
+  if (state !== 'over') drawHeatRing(hc);
+  for (const r of rivals) mothShape(r, 1, '#6b5a45', r.hue, 1);
+  if (state !== 'over'){
+    const singe = 1 - par / 100, warm = clamp(1 - Math.hypot(moth.x - hc.x, moth.y - hc.y) / (core * 6), 0, 1);
+    if (!reduceMotion && warm > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(moth.x, moth.y, 1, moth.x, moth.y, 26); g.addColorStop(0, `rgba(255,190,110,${warm * 0.45})`); g.addColorStop(1, 'rgba(255,160,80,0)'); ctx.fillStyle = g; ctx.fillRect(moth.x - 26, moth.y - 26, 52, 52); ctx.restore(); }
+    const wr = Math.round(246 - singe * 150), wg = Math.round(229 - singe * 170), wb = Math.round(187 - singe * 150);
+    mothShape(moth, 1.15, '#71634d', `rgb(${wr},${wg},${wb})`, 1);
+  }
+  for (const s of smoke){ ctx.fillStyle = `rgba(120,110,100,${Math.min(0.35, s.life * 0.3)})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); }
+  for (const s of sparks){ ctx.fillStyle = `rgba(255,200,110,${Math.min(1, s.life * 2)})`; ctx.fillRect(s.x, s.y, 2.5, 2.5); }
+
+  // outside the shama's reach the room is dark
+  const lr = core * 6.8;
+  const dk = ctx.createRadialGradient(flame.x, flame.y, lr * 0.35, flame.x, flame.y, lr * 1.5);
+  dk.addColorStop(0, 'rgba(5,3,2,0)'); dk.addColorStop(0.6, 'rgba(5,3,2,.45)'); dk.addColorStop(1, 'rgba(5,3,2,.88)');
+  ctx.fillStyle = dk; ctx.fillRect(0, 0, W, H);
+
+  if (state === 'play'){
+    ctx.textAlign = 'center'; ctx.font = '600 13px "IBM Plex Mono", monospace';
+    ctx.fillStyle = burning > 0 ? '#ff6b3d' : mult >= 5 ? '#ffd166' : mult > 0 ? 'rgba(255,243,228,.8)' : 'rgba(255,243,228,.4)';
+    ctx.fillText(burning > 0 ? 'jal rahe!' : mult > 0 ? '×' + mult : 'andhera ×0', moth.x, moth.y + 30);
+  }
+  for (const s of shouts) drawShout(s);
+  if (state === 'ready'){
+    ctx.globalAlpha = 0.6 + Math.sin(T * 3) * 0.3; ctx.fillStyle = '#ffd166'; ctx.font = '500 13px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('drag / pointer se udo · lau ke qareeb = zyada points', flame.x, floorY + 34);
+    ctx.fillText('laal ghere ke andar par jalte hain', flame.x, floorY + 52); ctx.globalAlpha = 1;
+  }
+  if (state === 'over') drawOver();
+}
+
+function drawOver(){
+  const a = Math.min(1, overT * 2.5);
+  ctx.fillStyle = `rgba(5,3,2,${0.55 * a})`; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center';
+  const cx = W / 2, cy = H * 0.4, big = Math.min(W * 0.12, 64);
+  ctx.font = `${big}px "Rozha One", Georgia, serif`; ctx.fillStyle = '#ffd166'; ctx.fillText('Par jal gaye', cx, cy - 30);
+  ctx.font = `700 ${big * 0.42}px "Noto Nastaliq Urdu", serif`; ctx.fillStyle = '#fff3e4'; ctx.fillText('پر جل گئے', cx, cy + 12);
+  ctx.font = '500 14px "IBM Plex Mono", monospace'; ctx.fillStyle = 'rgba(255,243,228,.85)';
+  ctx.fillText(`score ${Math.floor(score)}  ·  ${Math.floor(playT)}s shama ke paas`, cx, cy + 62);
+  ctx.fillText(Math.floor(score) >= best && best > 0 ? 'naya best!' : `best ${best}`, cx, cy + 86);
+  if (overT > 0.8){ ctx.fillStyle = `rgba(255,209,102,${0.6 + Math.sin(T * 4) * 0.3})`; ctx.fillText('tap / space to fly again', cx, cy + 124); }
+  ctx.restore();
+}
+
+/* ---------------- Setup ---------------- */
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  core = clamp(Math.min(W, H) * 0.065, 30, 58); curCore = core;
+  floorY = H * 0.84; flame.x = W / 2; flame.y = H * 0.5;
+}
+addEventListener('resize', resize);
+resize();
+reset();
+for (let i = 0; i < 60; i++) update(1 / 60);
+window.__moth = { get state(){ return state; }, get moth(){ return moth; }, get score(){ return score; }, get par(){ return par; }, get mult(){ return mult; }, get rivals(){ return rivals; }, heatCenter, get core(){ return core; } };
+let last = performance.now();
+function frame(now){ const dt = Math.min(1 / 30, (now - last) / 1000); last = now; update(dt); draw(); requestAnimationFrame(frame); }
+requestAnimationFrame(t => { last = t; frame(t); });
+})();
+</script>
+</body>
+</html>
