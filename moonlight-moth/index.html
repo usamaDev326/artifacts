@@ -177,3 +177,22 @@ function burnRival(r){
   spawnT = rnd(3, 6);
 }
 
+/* ---------------- Input ---------------- */
+function setPointer(e){ const r = cv.getBoundingClientRect(); pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top; pointer.touch = e.pointerType !== 'mouse'; }
+cv.addEventListener('pointerdown', e => {
+  setPointer(e); pointer.active = true; cv.setPointerCapture(e.pointerId); sound.init();
+  if (state === 'over'){ if (overT > 0.8) reset(); return; }
+  start();
+});
+cv.addEventListener('pointermove', e => { setPointer(e); if (e.pointerType === 'mouse' && state === 'play') pointer.active = true; });
+cv.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') pointer.active = false; });
+cv.addEventListener('pointercancel', () => { pointer.active = false; });
+const KEYS = { arrowup: 'u', w: 'u', arrowdown: 'd', s: 'd', arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r' };
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (KEYS[k]){ keys[KEYS[k]] = true; pointer.active = false; e.preventDefault(); sound.init(); start(); }
+  if (k === ' ' || k === 'enter'){ e.preventDefault(); sound.init(); if (state === 'over' && overT > 0.8) reset(); else start(); }
+});
+addEventListener('keyup', e => { const k = KEYS[e.key.toLowerCase()]; if (k) keys[k] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
