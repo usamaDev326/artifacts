@@ -341,3 +341,47 @@ function mothShape(m, scale, body, wing, alpha){
   ctx.restore(); ctx.globalAlpha = 1;
 }
 
+function drawShadows(){
+  // the flame throws giant moth shadows on the back wall
+  for (const m of [...rivals, moth]){
+    const dx = m.x - flame.x, dy = m.y - flame.y, dd = Math.hypot(dx, dy);
+    const a = clamp(0.45 - dd / (core * 14), 0.04, 0.4);
+    mothShape({ ...m, x: flame.x + dx * 2.3, y: flame.y + dy * 2.3 - core }, 2.6, '#000', '#000', a);
+  }
+}
+
+function drawShamadan(){
+  const fx = flame.x, fy = flame.y;
+  ctx.fillStyle = '#8a6a2a'; ctx.fillRect(fx - 3, fy + 60, 6, floorY - fy - 60);
+  ctx.beginPath(); ctx.ellipse(fx, floorY, 34, 8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#b8913d'; ctx.beginPath(); ctx.ellipse(fx, fy + 60, 24, 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#efe4cc'; ctx.fillRect(fx - 9, fy + 8, 18, 52);
+  ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.ellipse(fx, fy + 8, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(fx - 6, fy + 18, 2.5, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#2a1a10'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(fx, fy + 8); ctx.lineTo(fx, fy + 2); ctx.stroke();
+}
+
+function drawFlame(){
+  const fx = flame.x, fy = flame.y + 4, s = curCore / core;
+  const h = core * 0.95 * s * (1 + Math.sin(T * 17) * 0.05 + (flare.phase === 'warn' ? Math.sin(T * 60) * 0.15 : 0)), w = core * 0.28 * s;
+  const tipX = fx + wind * core * 1.2, tipY = fy - h;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const halo = ctx.createRadialGradient(fx, fy - h * 0.4, 2, fx, fy - h * 0.4, core * 7);
+  halo.addColorStop(0, `rgba(255,170,80,${0.32 + Math.sin(T * 9) * 0.03})`); halo.addColorStop(0.35, 'rgba(255,130,50,.08)'); halo.addColorStop(1, 'rgba(255,110,40,0)');
+  ctx.fillStyle = halo; ctx.fillRect(fx - core * 7, fy - core * 7, core * 14, core * 14);
+  ctx.restore();
+  ctx.fillStyle = '#ff8a2a'; ctx.beginPath(); ctx.moveTo(fx - w, fy); ctx.quadraticCurveTo(fx - w * 1.2, fy - h * 0.5, tipX, tipY); ctx.quadraticCurveTo(fx + w * 1.2, fy - h * 0.5, fx + w, fy); ctx.quadraticCurveTo(fx, fy + w, fx - w, fy); ctx.fill();
+  ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.moveTo(fx - w * 0.5, fy); ctx.quadraticCurveTo(fx - w * 0.6, fy - h * 0.35, fx + (tipX - fx) * 0.6, fy - h * 0.6); ctx.quadraticCurveTo(fx + w * 0.6, fy - h * 0.35, fx + w * 0.5, fy); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(90,140,255,.7)'; ctx.beginPath(); ctx.ellipse(fx, fy - 2, w * 0.45, w * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawHeatRing(hc){
+  ctx.save(); ctx.setLineDash([5, 7]); ctx.lineDashOffset = -T * 20;
+  ctx.strokeStyle = `rgba(255,90,50,${0.35 + Math.sin(T * 6) * 0.12 + burning * 0.4})`; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(hc.x, hc.y, curCore, 0, Math.PI * 2); ctx.stroke();
+  if (flare.phase === 'warn'){ ctx.strokeStyle = `rgba(255,60,40,${0.5 + Math.sin(T * 30) * 0.3})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(hc.x, hc.y, core * 1.75, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.setLineDash([2, 10]); ctx.strokeStyle = 'rgba(255,209,102,.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(hc.x, hc.y, core * 1.8, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
