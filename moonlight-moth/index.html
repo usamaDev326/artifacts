@@ -261,3 +261,49 @@ function update(dt){
   }
   sound.heat(clamp(1 - dm / (core * 6), 0, 1), burning > 0);
 
+  // rival parwane: orbit the flame, sometimes dive in like fools
+  if (state === 'play'){
+    spawnT -= dt;
+    if (spawnT <= 0 && rivals.length < 1 + Math.floor(playT / 25) && rivals.length < 4){ spawnRival(); spawnT = rnd(3, 6); }
+  }
+  for (const r of rivals){
+    r.orbitA += r.spd * dt; r.flap += dt * 18;
+    if (r.dive > 0) r.dive -= dt; else if (Math.random() < dt * (0.05 + d * 0.06)) r.dive = 1.4;
+    const tx = r.dive > 0 ? hc.x : hc.x + Math.cos(r.orbitA) * r.orbitR, ty = r.dive > 0 ? hc.y : hc.y + Math.sin(r.orbitA) * r.orbitR * 0.8;
+    steerMoth(r, tx, ty, 3.5, 2.4, dt);
+    r.x += r.vx * dt; r.y += r.vy * dt; r.ang += (clamp(r.vx / 500, -0.5, 0.5) - r.ang) * Math.min(1, dt * 8);
+    if (state !== 'over'){
+      const dx = r.x - moth.x, dy = r.y - moth.y, dd = Math.hypot(dx, dy) || 1;
+      if (dd < 26){
+        const nx = dx / dd, ny = dy / dd, push = 26 - dd;
+        r.x += nx * push / 2; r.y += ny * push / 2; moth.x -= nx * push / 2; moth.y -= ny * push / 2;
+        const rel = (moth.vx - r.vx) * nx + (moth.vy - r.vy) * ny;
+        if (rel > 0){ r.vx += nx * (rel + 180); r.vy += ny * (rel + 180); moth.vx -= nx * (rel * 0.6 + 140); moth.vy -= ny * (rel * 0.6 + 140); r.lastBump = T; r.dive = 0; sound.bump(); }
+      }
+    }
+    if (Math.hypot(r.x - hc.x, r.y - hc.y) < curCore * 0.8){ r.dead = true; burnRival(r); }
+  }
+  rivals = rivals.filter(r => !r.dead);
+
+  // particles
+  if ((gust.phase === 'warn' || gust.phase === 'blow') && !reduceMotion && Math.random() < dt * (gust.phase === 'blow' ? 40 : 12)){
+    dust.push({ x: gust.dir > 0 ? -10 : W + 10, y: rnd(0, floorY), v: gust.dir * rnd(400, 800), life: 2 });
+  }
+  for (const p of dust){ p.x += p.v * dt; p.y += Math.sin(T * 3 + p.x * 0.01) * 20 * dt; p.life -= dt; }
+  dust = dust.filter(p => p.life > 0 && p.x > -20 && p.x < W + 20);
+  for (const s of smoke){ s.x += (s.vx + wind * 60) * dt; s.y += s.vy * dt; s.r += dt * 6; s.life -= dt; }
+  smoke = smoke.filter(s => s.life > 0);
+  for (const s of sparks){ s.life -= dt; s.vy += 300 * dt; s.x += s.vx * dt; s.y += s.vy * dt; }
+  sparks = sparks.filter(s => s.life > 0);
+  for (const s of shouts) s.t += dt;
+  shouts = shouts.filter(s => s.t < 1.6);
+  hud();
+}
+
+function hud(){
+  $('sScore').textContent = Math.floor(score); $('sBest').textContent = best;
+  $('sMult').textContent = burning > 0 ? 'jal rahe!' : '×' + mult;
+  $('sPar').style.width = par + '%';
+  $('sWind').textContent = gust.phase === 'warn' ? 'hawa aa rahi…' : gust.phase === 'blow' ? `hawa ${gust.dir > 0 ? '→' : '←'}` : 'hawa –';
+}
+
