@@ -140,3 +140,40 @@ $('soundBtn').addEventListener('click', e => {
   sound.init(); const on = sound.toggle(); e.currentTarget.textContent = 'sound: ' + (on ? 'on' : 'off'); e.currentTarget.setAttribute('aria-pressed', on);
 });
 
+/* ---------------- Game flow ---------------- */
+const SHOUTS = [['Shabash!', 'شاباش'], ['Wah wah!', 'واہ واہ'], ['Kamaal!', 'کمال'], ['Chha gaye!', 'چھا گئے'], ['Asli parwana!', 'اصلی پروانہ']];
+let milestoneIdx = 0;
+
+function reset(){
+  score = 0; par = 100; mult = 0; lowPar = false; nextMilestone = 250; milestoneIdx = 0; burning = 0;
+  playT = 0; overT = 0; wind = 0; windTarget = 0; spawnT = 3;
+  Object.assign(gust, { phase: 'idle', t: 6, dir: 1, str: 0 }); Object.assign(flare, { phase: 'idle', t: 9 });
+  moth = { x: flame.x + core * 4.5, y: flame.y - core * 1.5, vx: 0, vy: 0, ang: 0, flap: 0 };
+  rivals = []; smoke = []; sparks = []; dust = []; shouts = [];
+  state = 'ready';
+}
+
+function start(){ if (state === 'ready') state = 'play'; }
+
+function gameOver(){
+  state = 'over'; overT = 0;
+  const s = Math.floor(score);
+  if (s > best){ best = s; try { localStorage.setItem(BEST_KEY, String(best)); } catch (e) {} }
+  for (let i = 0; i < 30; i++) smoke.push({ x: moth.x, y: moth.y, vx: rnd(-40, 40), vy: rnd(-90, -20), r: rnd(4, 10), life: rnd(1, 2) });
+  sound.heat(0, false); sound.over();
+}
+
+function spawnRival(){
+  const side = Math.floor(rnd(0, 4)), x = side === 0 ? -20 : side === 1 ? W + 20 : rnd(0, W), y = side < 2 ? rnd(0, floorY) : -20;
+  rivals.push({ x, y, vx: 0, vy: 0, ang: 0, flap: rnd(0, 6), orbitR: core * rnd(2.2, 4.5), orbitA: rnd(0, 6), spd: rnd(0.6, 1.2) * (Math.random() < 0.5 ? 1 : -1), dive: 0, lastBump: -9, hue: Math.random() < 0.5 ? '#cfc2a8' : '#b8a68c' });
+}
+
+function burnRival(r){
+  for (let i = 0; i < (reduceMotion ? 6 : 24); i++) sparks.push({ x: r.x, y: r.y, vx: rnd(-140, 140), vy: rnd(-180, 40), life: rnd(.3, .8) });
+  for (let i = 0; i < 10; i++) smoke.push({ x: r.x, y: r.y, vx: rnd(-20, 20), vy: rnd(-70, -20), r: rnd(3, 8), life: rnd(0.8, 1.6) });
+  sound.pop();
+  if (state === 'play' && T - r.lastBump < 1.6){ score += 100; shouts.push({ x: r.x, y: r.y, t: 0, text: 'Dhakka! +100', ur: 'دھکا' }); }
+  else shouts.push({ x: r.x, y: r.y, t: 0, text: 'Jal gaya', ur: '', small: true });
+  spawnT = rnd(3, 6);
+}
+
