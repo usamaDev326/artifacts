@@ -9,7 +9,7 @@ Jab agla game theek karna ho to is file ka reference do.
 |---|---|
 | Lantern Drift | ✅ Dobara likh diya (Ravi par diye, lau, combo, bhanwar) |
 | Maze Quest | ✅ Dobara likh diya (andheri galiyan, torch, Moti kutta, chabi + darwaza, levels) |
-| Moonlight Moth | ⏳ Baqi |
+| Moonlight Moth | ✅ Dobara likh diya (parwana aur shama, ×5 heat edge, hawa, bhabak, rival parwane, deewar par saaye) |
 | Paper Skies | ⏳ Baqi |
 
 ---
@@ -72,7 +72,7 @@ Copilot wale charon games ek hi template the: start panel, timer, lives, "X coll
 
 ---
 
-## Moonlight Moth ⏳
+## Moonlight Moth ✅ (ho gaya)
 
 **Masle** ([moonlight-moth/index.html](moonlight-moth/index.html)), bugs kam hain lekin challenge zero:
 - **Seeds kabhi ghaib nahi hote.** Har ~0.85s mein naya aata hai, screen bhar jati hai aur glow hamesha full rehta hai.
