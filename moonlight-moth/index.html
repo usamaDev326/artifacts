@@ -307,3 +307,37 @@ function hud(){
   $('sWind').textContent = gust.phase === 'warn' ? 'hawa aa rahi…' : gust.phase === 'blow' ? `hawa ${gust.dir > 0 ? '→' : '←'}` : 'hawa –';
 }
 
+/* ---------------- Drawing ---------------- */
+function drawRoom(){
+  const g = ctx.createLinearGradient(0, 0, 0, floorY);
+  g.addColorStop(0, '#120c0a'); g.addColorStop(1, '#22160f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, floorY);
+  ctx.fillStyle = '#140d09'; ctx.fillRect(0, floorY, W, H - floorY);
+  ctx.strokeStyle = 'rgba(255,220,180,.05)'; ctx.lineWidth = 1;
+  for (let x = -((floorY) % 60); x < W + 200; x += 60){ ctx.beginPath(); ctx.moveTo(flame.x + (x - flame.x) * 0.4, floorY); ctx.lineTo(x, H); ctx.stroke(); }
+  // jharokha with moonlight and a curtain that moves with the hawa
+  const jx = W * 0.16, jw = Math.min(W * 0.18, 150), jh = jw * 1.5, jy = floorY * 0.3;
+  ctx.fillStyle = '#16233a'; ctx.beginPath(); ctx.moveTo(jx - jw / 2, jy + jh); ctx.lineTo(jx - jw / 2, jy + jw / 2); ctx.arc(jx, jy + jw / 2, jw / 2, Math.PI, 0); ctx.lineTo(jx + jw / 2, jy + jh); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(220,230,255,.8)'; ctx.beginPath(); ctx.arc(jx + jw * 0.18, jy + jw * 0.45, jw * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#2a1a12'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(jx, jy); ctx.lineTo(jx, jy + jh); ctx.moveTo(jx - jw / 2, jy + jh * 0.55); ctx.lineTo(jx + jw / 2, jy + jh * 0.55); ctx.stroke();
+  const flap = wind * jw * 0.9 + Math.sin(T * 3) * jw * 0.04 * (1 + Math.abs(wind) * 4);
+  ctx.fillStyle = 'rgba(140,40,40,.75)'; ctx.beginPath(); ctx.moveTo(jx - jw / 2, jy + jw * 0.2);
+  ctx.quadraticCurveTo(jx - jw * 0.3 + flap * 0.5, jy + jh * 0.5, jx - jw * 0.35 + flap, jy + jh); ctx.lineTo(jx - jw / 2, jy + jh); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(160,190,255,.05)'; ctx.beginPath(); ctx.moveTo(jx - jw / 2, jy + jh); ctx.lineTo(jx + jw / 2, jy + jh); ctx.lineTo(jx + jw * 1.6, floorY + 40); ctx.lineTo(jx - jw * 0.1, floorY + 40); ctx.closePath(); ctx.fill();
+}
+
+function mothShape(m, scale, body, wing, alpha){
+  const fl = Math.sin(m.flap) * 0.45;
+  ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.ang); ctx.scale(scale, scale); ctx.globalAlpha = alpha;
+  ctx.fillStyle = wing;
+  for (const s of [-1, 1]){
+    ctx.save(); ctx.scale(s, 1); ctx.rotate(-fl);
+    ctx.beginPath(); ctx.ellipse(8, -4, 9, 6, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(6, 5, 6, 4.5, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(0, 1, 2.6, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = body; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-1, -5); ctx.quadraticCurveTo(-4, -10, -6, -11); ctx.moveTo(1, -5); ctx.quadraticCurveTo(4, -10, 6, -11); ctx.stroke();
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
