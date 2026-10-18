@@ -14,3 +14,25 @@ A daily collection of small, self-contained browser games and interactive pages 
 | [Maze Quest](maze-quest/) | Torch-lit galiyan of Andaroon Lahore. Grab jalebis and the chabi, reach the darwaza and escape Moti the kutta. |
 | [Moonlight Moth](moonlight-moth/) | Parwana and shama in a haveli room. Fly close to the flame for a x5 multiplier without singeing your wings. |
 | [Paper Skies](paper-skies/) | Steer a paper plane through golden rings while dodging clouds and wind gusts. |
+
+## Run locally
+
+Open any artifact's `index.html` directly in a browser, or serve the repo:
+
+```bash
+npx serve .
+```
+
+Then visit `http://localhost:3000/<artifact-folder>/`.
+
+## Structure
+
+```
+artifacts/
+├── <artifact-name>/
+│   └── index.html
+├── GAMES-REVIEW.md   # review and fix plan for the games
+└── README.md
+```
+
+New artifacts are added daily, one folder per artifact.
