@@ -36,3 +36,16 @@ artifacts/
 ```
 
 New artifacts are added daily, one folder per artifact.
+
+## Controls
+
+All games work on desktop and mobile. Tap or click once to start and enable sound.
+
+| Artifact | Controls |
+| --- | --- |
+| Bo Kata | Drag anywhere or arrow keys |
+| Load Shedding | Move the torch, tap items and mosquitoes |
+| Lantern Drift | Drag, touch or WASD |
+| Maze Quest | Swipe, tap, arrows or WASD |
+| Moonlight Moth | Pointer, touch or WASD |
+| Paper Skies | Pointer, touch or arrow keys |
