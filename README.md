@@ -49,3 +49,10 @@ All games work on desktop and mobile. Tap or click once to start and enable soun
 | Maze Quest | Swipe, tap, arrows or WASD |
 | Moonlight Moth | Pointer, touch or WASD |
 | Paper Skies | Pointer, touch or arrow keys |
+
+## Built with
+
+- Plain HTML, CSS and JavaScript on a single `<canvas>`
+- Web Audio API for all sound effects, no audio files
+- Google Fonts: Rozha One, Noto Nastaliq Urdu and IBM Plex Mono
+- `localStorage` for best scores
