@@ -56,3 +56,10 @@ All games work on desktop and mobile. Tap or click once to start and enable soun
 - Web Audio API for all sound effects, no audio files
 - Google Fonts: Rozha One, Noto Nastaliq Urdu and IBM Plex Mono
 - `localStorage` for best scores
+
+## Adding a new artifact
+
+1. Create a new folder with a short kebab-case name, e.g. `my-game/`.
+2. Put the whole artifact in a single `my-game/index.html`.
+3. Add a row for it in the Artifacts and Controls tables above.
+4. Commit it on its own with a message like `Usama: "My Game - short description"`.
